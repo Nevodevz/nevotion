@@ -10,6 +10,7 @@ from app.models import (
     LeadSource, Service, LeadStage, RejectReason, ExpenseCategory, Account,
     Lead, LeadStageHistory, LeadActivity, LeadStatus,
     PayrollRule, FinanceTransaction, AdExpense, MonthlyPlan, DevPayrollConfig,
+    LabProject, LabProjectMember,
 )
 
 DEFAULT_COLS = [("To-do", "#767586", False), ("In progress", "#4648d4", False), ("Done", "#16a34a", True)]
@@ -512,8 +513,84 @@ def seed_monthly_plan():
         db.close()
 
 
+def seed_nevolabs():
+    """Create NevoLabs department, add Erbol (Руководитель) and Atif (Легенда). Idempotent."""
+    db = SessionLocal()
+    try:
+        # Create department if absent
+        dept = db.query(Department).filter_by(slug="nevolabs").first()
+        if not dept:
+            dept = Department(
+                name="NevoLabs",
+                slug="nevolabs",
+                icon="science",
+                kind="nevolabs",
+                admin_only=False,
+                content="",
+                embed_url="",
+            )
+            db.add(dept)
+            db.flush()
+            print("✅ NevoLabs department created")
+        else:
+            print("ℹ️  NevoLabs department already exists")
+
+        # Erbol: add to nevolabs, change position, remove from dev
+        erbol = db.query(User).filter_by(email="erbol@nevodevs.kg").first()
+        if erbol:
+            dev_dept = db.query(Department).filter_by(slug="dev").first()
+            if dev_dept and erbol in dev_dept.members:
+                dev_dept.members.remove(erbol)
+                print("✅ Erbol removed from dev department")
+            erbol.position = "Руководитель"
+            if erbol not in dept.members:
+                dept.members.append(erbol)
+                print("✅ Erbol added to NevoLabs as Руководитель")
+            else:
+                print("ℹ️  Erbol already in NevoLabs")
+        else:
+            print("⚠️  Erbol (erbol@nevodevs.kg) not found")
+
+        # Atif: create if absent, add to nevolabs
+        atif = db.query(User).filter_by(email="abdulatif.works@gmail.com").first()
+        if not atif:
+            from app.core.security import hash_password
+            atif = User(
+                name="Атиф",
+                email="abdulatif.works@gmail.com",
+                password_hash=hash_password(STAFF_PW),
+                role=Role.staff,
+                position="Легенда",
+                is_founder=False,
+                avatar_color="indigo",
+                is_active=True,
+            )
+            db.add(atif)
+            db.flush()
+            # Personal board for Atif
+            board = Board(name="Личный трекер", kind="personal", owner_id=atif.id)
+            db.add(board)
+            db.flush()
+            for i, (n, c, d) in enumerate(DEFAULT_COLS):
+                db.add(BoardColumn(board_id=board.id, name=n, color=c, position=i, is_done=d))
+            db.flush()
+            print("✅ Atif created with personal board")
+        else:
+            print("ℹ️  Atif already exists")
+
+        if atif and atif not in dept.members:
+            dept.members.append(atif)
+            print("✅ Atif added to NevoLabs")
+
+        db.commit()
+        print("✅ seed_nevolabs complete")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     seed()
     seed_ad_expenses()
     seed_monthly_plan()
     seed_dev_payroll()
+    seed_nevolabs()

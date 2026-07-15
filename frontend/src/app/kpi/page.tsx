@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { analyticsApi } from "@/lib/api";
 import type { KpiPlanFact, KpiMetric, MonthlyPlan } from "@/lib/types";
+import { Button, Input, FormField, PageHeader } from "@/components/ui";
 
 const MONTH_NAMES = [
   "", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -21,9 +22,7 @@ function fmtVal(n: number, unit: string) {
 function ProgressBar({ pct, good }: { pct: number | null; good: boolean }) {
   const clamped = Math.min(pct ?? 0, 150);
   const color = pct === null ? "var(--bg3)"
-    : good
-      ? (pct >= 100 ? "#16a34a" : pct >= 70 ? "#f59e0b" : "#e03b3b")
-      : (pct >= 100 ? "#16a34a" : pct >= 70 ? "#f59e0b" : "#e03b3b");
+    : (pct >= 100 ? "var(--green)" : pct >= 70 ? "var(--yellow)" : "var(--red)");
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -46,9 +45,9 @@ function ProgressBar({ pct, good }: { pct: number | null; good: boolean }) {
 function MetricRow({ m }: { m: KpiMetric }) {
   const pct = m.pct;
   const statusColor = pct === null ? "var(--text3)"
-    : pct >= 100 ? "#16a34a"
-    : pct >= 70 ? "#f59e0b"
-    : "#e03b3b";
+    : pct >= 100 ? "var(--green)"
+    : pct >= 70 ? "var(--yellow)"
+    : "var(--red)";
 
   return (
     <div className="card" style={{ padding: "16px 20px" }}>
@@ -83,7 +82,7 @@ function MetricRow({ m }: { m: KpiMetric }) {
 }
 
 export default function KpiPage() {
-  const { user: me, isAdmin: _isAdminCtx } = useApp();
+  const { user: me } = useApp();
   const showToast = useToast();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
@@ -153,25 +152,24 @@ export default function KpiPage() {
 
   return (
     <Shell title="KPI">
-      <div className="page-head" style={{ marginBottom: 20 }}>
-        <div>
-          <div className="page-h1">KPI — план vs факт</div>
-          <div className="page-desc">Ключевые показатели эффективности</div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button className="btn-ghost" onClick={prevMonth}>‹</button>
-          <div style={{ fontWeight: 600, fontSize: 15, minWidth: 160, textAlign: "center" }}>
-            {MONTH_NAMES[month]} {year}
+      <PageHeader
+        title="KPI — план vs факт"
+        subtitle="Ключевые показатели эффективности"
+        actions={
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Button variant="ghost" icon="chevron_left" onClick={prevMonth} />
+            <div style={{ fontWeight: 600, fontSize: 15, minWidth: 160, textAlign: "center" }}>
+              {MONTH_NAMES[month]} {year}
+            </div>
+            <Button variant="ghost" icon="chevron_right" onClick={nextMonth} />
+            {isAdmin && (
+              <Button variant="primary" icon="edit" onClick={() => setEditOpen(true)}>
+                {data?.plan_id ? "Изменить план" : "Задать план"}
+              </Button>
+            )}
           </div>
-          <button className="btn-ghost" onClick={nextMonth}>›</button>
-          {isAdmin && (
-            <button className="btn-primary" onClick={() => setEditOpen(true)}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: "middle", marginRight: 4 }}>edit</span>
-              {data?.plan_id ? "Изменить план" : "Задать план"}
-            </button>
-          )}
-        </div>
-      </div>
+        }
+      />
 
       {loading && (
         <div className="card" style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>Загрузка...</div>
@@ -180,7 +178,7 @@ export default function KpiPage() {
       {!loading && data && (
         <>
           {!data.plan_id && isAdmin && (
-            <div className="card" style={{ padding: 16, marginBottom: 16, borderLeft: "3px solid #f59e0b", color: "var(--text2)", fontSize: 13 }}>
+            <div className="card" style={{ padding: 16, marginBottom: 16, borderLeft: "3px solid var(--yellow)", color: "var(--text2)", fontSize: 13 }}>
               <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6 }}>info</span>
               План на {MONTH_NAMES[month]} {year} не задан. Нажмите «Задать план» чтобы установить цели.
             </div>
@@ -193,35 +191,31 @@ export default function KpiPage() {
 
       {/* Edit plan modal */}
       {editOpen && (
-        <Modal open={editOpen} title={data?.plan_id ? "Изменить план" : "Задать план"} onClose={() => setEditOpen(false)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "8px 0" }}>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>{MONTH_NAMES[month]} {year}</div>
-            {[
-              { key: "plan_revenue", label: "Выручка (сом)" },
-              { key: "plan_leads", label: "Лиды (шт)" },
-              { key: "plan_meetings", label: "Встречи (шт)" },
-              { key: "plan_sales", label: "Продажи (шт)" },
-              { key: "plan_cpl", label: "CPL — целевой (сом)" },
-              { key: "plan_cac", label: "CAC — целевой (сом)" },
-              { key: "plan_expenses", label: "Расходы — лимит (сом)" },
-            ].map(({ key, label }) => (
-              <div key={key}>
-                <label style={{ fontSize: 12, color: "var(--text3)", marginBottom: 4, display: "block" }}>{label}</label>
-                <input
-                  type="number"
-                  className="input"
-                  value={(form as any)[key]}
-                  onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
-                />
-              </div>
-            ))}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
-              <button className="btn-ghost" onClick={() => setEditOpen(false)}>Отмена</button>
-              <button className="btn-primary" onClick={savePlan} disabled={saving}>
-                {saving ? "Сохранение..." : "Сохранить"}
-              </button>
-            </div>
-          </div>
+        <Modal open={editOpen} title={data?.plan_id ? "Изменить план" : "Задать план"} onClose={() => setEditOpen(false)}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setEditOpen(false)}>Отмена</Button>
+              <Button variant="primary" onClick={savePlan} disabled={saving} loading={saving}>Сохранить</Button>
+            </>
+          }>
+          <div style={{ fontWeight: 600, marginBottom: 12, color: "var(--text2)" }}>{MONTH_NAMES[month]} {year}</div>
+          {[
+            { key: "plan_revenue", label: "Выручка (сом)" },
+            { key: "plan_leads", label: "Лиды (шт)" },
+            { key: "plan_meetings", label: "Встречи (шт)" },
+            { key: "plan_sales", label: "Продажи (шт)" },
+            { key: "plan_cpl", label: "CPL — целевой (сом)" },
+            { key: "plan_cac", label: "CAC — целевой (сом)" },
+            { key: "plan_expenses", label: "Расходы — лимит (сом)" },
+          ].map(({ key, label }) => (
+            <FormField key={key} label={label}>
+              <Input
+                type="number"
+                value={(form as any)[key]}
+                onChange={e => setForm(f => ({ ...f, [key]: Number(e.target.value) }))}
+              />
+            </FormField>
+          ))}
         </Modal>
       )}
     </Shell>

@@ -14,6 +14,7 @@ import {
   Department, UserWithStats, Project, Board, Lead, STATUS_LABELS, ProjectStatus,
   BOT_COLORS, BOT_SUB_STATUSES, BotColor,
 } from "@/lib/types";
+import { Button, ConfirmModal } from "@/components/ui";
 
 // Helper: compute total salary for a prompter from their projects
 function calcSalary(projects: Project[], userId: number): number {
@@ -35,13 +36,13 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [prompterFilter, setPrompterFilter] = useState<number | null>(null);
   const [projectPage, setProjectPage] = useState(1);
+  const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
   const PROJECT_PAGE_SIZE = 30;
 
   const load = useCallback(() => {
     api.listUsers(dept.id).then(setUsers).catch(() => {});
     api.listProjects().then((prjs) => {
       setProjects(prjs);
-      // Load leads for projects that have lead_id
       const leadIds = [...new Set(prjs.filter(p => p.lead_id).map(p => p.lead_id as number))];
       if (leadIds.length > 0) {
         Promise.all(leadIds.map(id => leadApi.get(id).catch(() => null)))
@@ -63,6 +64,8 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
   const filteredProjects = prompterFilter ? projects.filter((p) => p.owner_id === prompterFilter) : projects;
   const visibleProjects = filteredProjects.slice(0, projectPage * PROJECT_PAGE_SIZE);
   const hasMoreProjects = filteredProjects.length > visibleProjects.length;
+
+  const deleteProject = projects.find(p => p.id === deleteProjectId);
 
   function setFilter(id: number | null) {
     setPrompterFilter(id);
@@ -90,9 +93,7 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
           <div className="page-desc">Команда, проекты и очередь задач</div>
         </div>
         {isAdmin && (
-          <button className="btn btn-primary" onClick={() => setUserModal(true)}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span> Сотрудник
-          </button>
+          <Button icon="person_add" onClick={() => setUserModal(true)}>Сотрудник</Button>
         )}
       </div>
 
@@ -161,9 +162,9 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
       {/* Projects List */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 34, marginBottom: 14 }}>
         <SectionLabel style={{ margin: 0 }}>Проекты</SectionLabel>
-        <button className="btn btn-ghost" onClick={() => { setEditingProject(null); setProjectModal(true); }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Добавить проект
-        </button>
+        <Button variant="ghost" icon="add" onClick={() => { setEditingProject(null); setProjectModal(true); }}>
+          Добавить проект
+        </Button>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <div className={`chip ${prompterFilter === null ? "active" : ""}`} onClick={() => setFilter(null)}>Все ({projects.length})</div>
@@ -267,9 +268,7 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
                             <span className="material-symbols-outlined" style={{ fontSize: 17 }}>edit</span>
                           </button>
                           {isAdmin && (
-                            <button className="row-act" onClick={async () => {
-                              if (confirm(`Удалить проект «${p.company}»?`)) { await api.deleteProject(p.id); load(); }
-                            }}>
+                            <button className="row-act" onClick={() => setDeleteProjectId(p.id)}>
                               <span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span>
                             </button>
                           )}
@@ -283,22 +282,40 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
           </table>
           {hasMoreProjects && (
             <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)" }}>
-              <button className="btn btn-ghost" style={{ width: "100%", fontSize: 12 }}
+              <Button variant="ghost" style={{ width: "100%", justifyContent: "center", fontSize: 12 }}
                 onClick={() => setProjectPage(p => p + 1)}>
                 Загрузить ещё ({filteredProjects.length - visibleProjects.length})
-              </button>
+              </Button>
             </div>
           )}
         </div>
       </div>
 
       {/* Backend queue */}
-      <SectionLabel style={{ marginTop: 34 }}>Очередь задач бэкенда</SectionLabel>
-      <div className="page-desc" style={{ marginBottom: 16 }}>Промптеры ставят задачи бэкендерам · колонки и карточки редактируемы</div>
+      <div className="queue-head">
+        <div className="queue-title">Очередь задач бэкенда</div>
+        <div className="queue-subtitle">Промптеры ставят задачи бэкендерам · колонки и карточки редактируемы</div>
+      </div>
       {backendBoard && <BoardView boardId={backendBoard.id} />}
 
       <UserModal open={userModal} onClose={() => setUserModal(false)} onSaved={load} user={null} departments={departments} defaultDeptId={dept.id} />
       <ProjectModal open={projectModal} onClose={() => setProjectModal(false)} onSaved={load} project={editingProject} users={users} />
+
+      <ConfirmModal
+        open={deleteProjectId !== null}
+        title="Удалить проект?"
+        message={deleteProject ? `Проект «${deleteProject.company}» будет удалён без возможности восстановления.` : ""}
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteProjectId !== null) {
+            await api.deleteProject(deleteProjectId).catch(() => {});
+            setDeleteProjectId(null);
+            load();
+          }
+        }}
+        onCancel={() => setDeleteProjectId(null)}
+      />
 
       <style jsx global>{`
         .backend-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
@@ -331,6 +348,9 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
         .row-act { width: 28px; height: 28px; border: none; background: transparent; color: var(--text3); border-radius: 5px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .row-act:hover { background: var(--bg3); color: var(--text); }
         .section-label { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 14px; }
+        .queue-head { margin-top: 32px; text-align: center; }
+        .queue-title { font-size: 16px; font-weight: 500; color: var(--text); }
+        .queue-subtitle { font-size: 13px; color: var(--text2); margin-top: 4px; margin-bottom: 20px; }
       `}</style>
     </div>
   );

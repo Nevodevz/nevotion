@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import calendar
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -100,10 +101,18 @@ def list_meetings(
     if setter_id:
         q = q.filter(Meeting.setter_id == setter_id)
     if year and month:
-        from sqlalchemy import extract
+        # Filter by Bishkek-local month boundaries (UTC+6), converted to UTC,
+        # so a meeting whose local date falls in this month isn't dropped
+        # just because its UTC timestamp spills into the adjacent month.
+        BISHKEK_OFFSET = timedelta(hours=6)
+        days_in_month = calendar.monthrange(year, month)[1]
+        local_start = datetime(year, month, 1, 0, 0, 0)
+        local_end = datetime(year, month, days_in_month, 23, 59, 59)
+        start_utc = local_start - BISHKEK_OFFSET
+        end_utc = local_end - BISHKEK_OFFSET
         q = q.filter(
-            extract('year',  Meeting.meeting_date) == year,
-            extract('month', Meeting.meeting_date) == month,
+            Meeting.meeting_date >= start_utc,
+            Meeting.meeting_date <= end_utc,
         )
     if date_from:
         q = q.filter(Meeting.meeting_date >= date_from)

@@ -1,47 +1,51 @@
-# NevoOcean MCP Server
+# NevoOcean MCP Server (remote, Streamable HTTP)
 
-MCP-сервер для управления задачами NevoOcean через Claude Desktop. Действует от имени пользователя с его правами.
+Remote MCP-сервис для NevoOcean. Сотрудники подключают его в Claude как **custom
+connector** по URL — без доступа к репозиторию и без локальной установки.
+Сервис действует от имени пользователя, чей API-ключ передан в запросе: все
+права применяет backend (по заголовку `X-API-Key`), MCP их не обходит.
 
-## Установка
+## Как это развёрнуто
 
-```bash
-cd mcp-server
-pip install -r requirements.txt
+Сервис собирается и запускается как ещё один контейнер в `docker-compose.yml`
+(сервис `mcp`), слушает Streamable HTTP на `0.0.0.0:9000` внутри docker-сети.
+Наружу публикуется через nginx по пути `/mcp` на основном домене:
+
+```
+https://nevocean.nevoai.kg/mcp
 ```
 
-## Получение API-ключа
+nginx проксирует `/mcp` на `mcp:9000` с отключённой буферизацией (стриминг).
 
-1. Войдите в NevoOcean
-2. Перейдите в **Профиль** → раздел **API-ключи (для Claude)**
-3. Нажмите **Создать ключ**, введите название (например «Мой Claude»)
-4. Скопируйте ключ — он показывается **один раз**
+## Переменные окружения
 
-## Настройка Claude Desktop
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `BACKEND_API_URL` | `http://backend:8000/api` | Внутренний адрес backend API |
+| `MCP_HOST` | `0.0.0.0` | Адрес, на котором слушает сервис |
+| `MCP_PORT` | `9000` | Порт |
 
-Откройте конфиг Claude Desktop:
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+## Аутентификация
 
-Добавьте блок `mcpServers`:
+Клиент (Claude) передаёт персональный API-ключ пользователя (формат `nvo_...`,
+создаётся в **Профиль → API-ключи**) одним из двух способов — сервис принимает оба:
 
-```json
-{
-  "mcpServers": {
-    "nevoocean": {
-      "command": "python",
-      "args": ["/АБСОЛЮТНЫЙ/ПУТЬ/К/mcp-server/server.py"],
-      "env": {
-        "NEVOOCEAN_API_URL": "https://ваш-сервер.com",
-        "NEVOOCEAN_API_KEY": "nvo_ваш_ключ_здесь"
-      }
-    }
-  }
-}
-```
+- заголовок `Authorization: Bearer <ключ>`
+- заголовок `X-API-Key: <ключ>`
 
-Замените `/АБСОЛЮТНЫЙ/ПУТЬ/К/mcp-server/server.py` на реальный путь к файлу.
+Сервис извлекает ключ из входящего HTTP-запроса и прокидывает его в backend
+(`X-API-Key: <ключ>`) при каждом вызове инструмента. Если backend вернул 401/403 —
+инструмент возвращает понятную текстовую ошибку. Если ключ не передан вовсе —
+все инструменты возвращают ошибку авторизации без обращения к backend.
 
-Перезапустите Claude Desktop — инструменты появятся автоматически.
+## Подключение в Claude (custom connector)
+
+1. Войдите в NevoOcean → **Профиль** → раздел **API-ключи (для Claude)**.
+2. Нажмите **Создать ключ**, скопируйте его — он показывается один раз.
+3. В Claude: **Settings → Connectors → Add custom connector**.
+4. Вставьте URL: `https://nevocean.nevoai.kg/mcp`.
+5. В поле авторизации коннектора вставьте свой API-ключ.
+6. Сохраните — инструменты NevoOcean появятся в Claude автоматически.
 
 ## Доступные инструменты
 
@@ -68,4 +72,24 @@ pip install -r requirements.txt
 
 ## Безопасность
 
-Claude действует строго в рамках прав владельца ключа — бэкенд автоматически применяет все проверки доступа. Ключ не хранится в БД в открытом виде — только SHA-256 хеш.
+Claude действует строго в рамках прав владельца ключа — бэкенд автоматически
+применяет все проверки доступа, MCP-сервис их не обходит. Ключ не хранится в БД
+в открытом виде — только SHA-256 хеш. MCP-сервис не хранит ключи нигде: ключ
+живёт только в памяти на время обработки конкретного HTTP-запроса.
+
+## Локальный запуск (для разработки)
+
+```bash
+cd mcp-server
+pip install -r requirements.txt
+BACKEND_API_URL=http://localhost:8000/api python server.py
+```
+
+Проверка живости: `curl http://localhost:9000/healthz`.
+
+## Развёртывание на сервере
+
+```bash
+docker compose up -d --build mcp
+docker compose exec nginx nginx -s reload   # либо docker compose restart nginx
+```

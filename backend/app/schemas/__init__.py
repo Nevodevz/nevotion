@@ -294,3 +294,47 @@ class MarketingRecordOut(BaseModel):
     record_date: date
     fields: dict[str, Any]
     user: Optional[UserOut] = None
+
+
+# ---------- LabProject ----------
+
+class LabProjectMemberOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    lab_project_id: int
+    user_id: int
+    user: Optional[UserOut] = None
+
+
+class LabProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str
+    status: str
+    board_id: Optional[int] = None
+    is_archived: bool
+    created_by: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    members: list[LabProjectMemberOut] = []
+    creator: Optional[UserOut] = None
+    user_can_manage: bool = False
+
+
+class LabProjectCreate(BaseModel):
+    name: str
+    description: str = ""
+    status: str = "Идея"
+    member_ids: list[int] = []
+
+
+class LabProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    member_ids: Optional[list[int]] = None
+
+
+class LabProjectMemberAdd(BaseModel):
+    user_id: int

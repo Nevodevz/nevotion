@@ -11,11 +11,17 @@
   --bg2: #ffffff;
   --bg3: #f3f4f5;
   --bg-hover: #f9fafb;
+  --bg-input: #ffffff;
+  --bg-card: #ffffff;
   --border: #e5e7eb;
   --border2: #d9dadb;
+  --border-hover: #c8cad0;
+  --border-focus: #4648d4;
   --text: #191c1d;
+  --text1: #191c1d;
   --text2: #464554;
   --text3: #767586;
+  --overlay: rgba(0,0,0,0.5);
   --sidebar-bg: #1c1c28;
   --sidebar-text: #9a9aa8;
   --sidebar-text2: #6b6b7d;
@@ -30,11 +36,17 @@
   --bg2: #131b2e;
   --bg3: #171f33;
   --bg-hover: #1a2236;
+  --bg-input: #131b2e;
+  --bg-card: #131b2e;
   --border: #2d3449;
   --border2: #222a3d;
+  --border-hover: #3d4a62;
+  --border-focus: #6063ee;
   --text: #dae2fd;
+  --text1: #dae2fd;
   --text2: #b9c8de;
   --text3: #908fa0;
+  --overlay: rgba(0,0,0,0.6);
   --sidebar-bg: #060e20;
   --sidebar-text: #908fa0;
   --sidebar-text2: #6b7280;
@@ -44,11 +56,16 @@
 }
 
 :root {
+  /* Font */
+  --font: "Inter", sans-serif;
+
+  /* Brand / semantic colors */
   --primary: #4648d4;
   --primary-hover: #3a3cc0;
   --primary2: #6063ee;
   --primary-dim: rgba(70,72,212,0.1);
   --primary-light: #c0c1ff;
+  --accent: #4648d4;
   --green: #16a34a;
   --green-bg: rgba(22,163,74,0.12);
   --orange: #b55d00;
@@ -56,6 +73,11 @@
   --red: #ba1a1a;
   --red-bg: rgba(186,26,26,0.1);
   --yellow: #ca8a04;
+
+  /* Border radius scale */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -104,7 +126,7 @@ body {
 
 /* ===== MODALS ===== */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  position: fixed; inset: 0; background: var(--overlay);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000; animation: overlayIn 0.15s ease;
   padding: 16px;

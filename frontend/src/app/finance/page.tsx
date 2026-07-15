@@ -2,11 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Shell } from "@/components/Shell";
+import { Modal } from "@/components/Modal";
 import { financeApi, settingsApi, analyticsApi } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import type {
   FinanceTransaction, Debt, AccountBalance, FinanceSummary, ExpenseCategory, Account,
 } from "@/lib/types";
 import { useApp } from "@/context/AppContext";
+import { Button, Input, Select, FormField, PageHeader, DateRangePicker } from "@/components/ui";
 
 type Tab = "summary" | "income" | "expenses" | "debts" | "balances" | "sheets";
 
@@ -46,6 +49,7 @@ function TxModal({
   categories: ExpenseCategory[];
   accounts: Account[];
 }) {
+  const toast = useToast();
   const [type, setType] = useState<"income" | "expense">("expense");
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
@@ -63,61 +67,53 @@ function TxModal({
         date, comment, account_id: accountId ? parseInt(accountId) : null,
       });
       onClose();
-    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    } catch (e: any) { toast(e.message || "Ошибка", "error"); } finally { setSaving(false); }
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="card" style={{ padding: 24, minWidth: 380, maxWidth: 480 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Добавить транзакцию</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {(["income", "expense"] as const).map(t => (
-            <button key={t} onClick={() => setType(t)}
-              className={`btn ${type === t ? "btn-primary" : "btn-ghost"}`} style={{ flex: 1 }}>
-              {t === "income" ? "Доход" : "Расход"}
-            </button>
-          ))}
-        </div>
-        {type === "expense" && (
-          <div style={{ marginBottom: 10 }}>
-            <label className="field-label">Категория</label>
-            <select className="field-input" value={category} onChange={e => setCategory(e.target.value)}>
-              <option value="">Без категории</option>
-              {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-            </select>
-          </div>
-        )}
-        <div style={{ marginBottom: 10 }}>
-          <label className="field-label">Сумма (сом)</label>
-          <input className="field-input" type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label className="field-label">Дата</label>
-          <input className="field-input" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label className="field-label">Счёт</label>
-          <select className="field-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
-            <option value="">Без счёта</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label className="field-label">Комментарий</label>
-          <input className="field-input" value={comment} onChange={e => setComment(e.target.value)} placeholder="Описание" />
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button className="btn btn-primary" onClick={submit} disabled={saving || !amount}>
-            {saving ? "Сохраняю..." : "Сохранить"}
-          </button>
-        </div>
+    <Modal open title="Добавить транзакцию" onClose={onClose} width={480}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" onClick={submit} disabled={saving || !amount} loading={saving}>Сохранить</Button>
+        </>
+      }>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {(["income", "expense"] as const).map(t => (
+          <Button key={t} variant={type === t ? "primary" : "ghost"} onClick={() => setType(t)} style={{ flex: 1, justifyContent: "center" }}>
+            {t === "income" ? "Доход" : "Расход"}
+          </Button>
+        ))}
       </div>
-    </div>
+      {type === "expense" && (
+        <FormField label="Категория">
+          <Select value={category} onChange={e => setCategory(e.target.value)}>
+            <option value="">Без категории</option>
+            {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </Select>
+        </FormField>
+      )}
+      <FormField label="Сумма (сом)">
+        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" />
+      </FormField>
+      <FormField label="Дата">
+        <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      </FormField>
+      <FormField label="Счёт">
+        <Select value={accountId} onChange={e => setAccountId(e.target.value)}>
+          <option value="">Без счёта</option>
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </Select>
+      </FormField>
+      <FormField label="Комментарий">
+        <Input value={comment} onChange={e => setComment(e.target.value)} placeholder="Описание" />
+      </FormField>
+    </Modal>
   );
 }
 
 function DebtModal({ onClose, onSave }: { onClose: () => void; onSave: (d: any) => Promise<void> }) {
+  const toast = useToast();
   const [counterparty, setCounterparty] = useState("");
   const [direction, setDirection] = useState<"we_owe" | "owed_to_us">("we_owe");
   const [amount, setAmount] = useState("");
@@ -132,50 +128,77 @@ function DebtModal({ onClose, onSave }: { onClose: () => void; onSave: (d: any) 
     try {
       await onSave({ counterparty, direction, amount: parseInt(amount), created_date: createdDate, due_date: dueDate || null, comment, status: "active" });
       onClose();
-    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    } catch (e: any) { toast(e.message || "Ошибка", "error"); } finally { setSaving(false); }
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="card" style={{ padding: 24, minWidth: 380 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Добавить долг</div>
-        <div style={{ marginBottom: 10 }}>
-          <label className="field-label">Контрагент</label>
-          <input className="field-input" value={counterparty} onChange={e => setCounterparty(e.target.value)} placeholder="Имя или компания" />
-        </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          {([["we_owe", "Мы должны"], ["owed_to_us", "Нам должны"]] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setDirection(v)} className={`btn ${direction === v ? "btn-primary" : "btn-ghost"}`} style={{ flex: 1 }}>
-              {l}
-            </button>
-          ))}
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label className="field-label">Сумма (сом)</label>
-          <input className="field-input" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
-        </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <div style={{ flex: 1 }}>
-            <label className="field-label">Дата создания</label>
-            <input className="field-input" type="date" value={createdDate} onChange={e => setCreatedDate(e.target.value)} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label className="field-label">Срок оплаты</label>
-            <input className="field-input" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label className="field-label">Комментарий</label>
-          <input className="field-input" value={comment} onChange={e => setComment(e.target.value)} />
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button className="btn btn-primary" onClick={submit} disabled={saving || !counterparty || !amount}>
-            {saving ? "Сохраняю..." : "Сохранить"}
-          </button>
-        </div>
+    <Modal open title="Добавить долг" onClose={onClose} width={440}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" onClick={submit} disabled={saving || !counterparty || !amount} loading={saving}>Сохранить</Button>
+        </>
+      }>
+      <FormField label="Контрагент">
+        <Input value={counterparty} onChange={e => setCounterparty(e.target.value)} placeholder="Имя или компания" />
+      </FormField>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {([["we_owe", "Мы должны"], ["owed_to_us", "Нам должны"]] as const).map(([v, l]) => (
+          <Button key={v} variant={direction === v ? "primary" : "ghost"} onClick={() => setDirection(v)} style={{ flex: 1, justifyContent: "center" }}>
+            {l}
+          </Button>
+        ))}
       </div>
-    </div>
+      <FormField label="Сумма (сом)">
+        <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+      </FormField>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <FormField label="Дата создания">
+          <Input type="date" value={createdDate} onChange={e => setCreatedDate(e.target.value)} />
+        </FormField>
+        <FormField label="Срок оплаты">
+          <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+        </FormField>
+      </div>
+      <FormField label="Комментарий">
+        <Input value={comment} onChange={e => setComment(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+function AddBalanceModal({ accounts, onClose, onSave }: { accounts: Account[]; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+  const toast = useToast();
+  const [accountId, setAccountId] = useState(accounts[0]?.id ? String(accounts[0].id) : "");
+  const [balance, setBalance] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    if (!balance || !accountId) return;
+    setSaving(true);
+    try {
+      await onSave({ account_id: parseInt(accountId), date: new Date().toISOString().slice(0, 10), balance: parseInt(balance), comment: "" });
+      onClose();
+    } catch (e: any) { toast(e.message || "Ошибка", "error"); } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal open title="Снимок остатка" onClose={onClose} width={380}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" onClick={submit} disabled={saving || !balance} loading={saving}>Сохранить</Button>
+        </>
+      }>
+      <FormField label="Счёт">
+        <Select value={accountId} onChange={e => setAccountId(e.target.value)}>
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </Select>
+      </FormField>
+      <FormField label="Остаток (сом)">
+        <Input type="number" value={balance} onChange={e => setBalance(e.target.value)} placeholder="0" autoFocus />
+      </FormField>
+    </Modal>
   );
 }
 
@@ -199,6 +222,7 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [showTxModal, setShowTxModal] = useState(false);
   const [showDebtModal, setShowDebtModal] = useState(false);
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
   const [txType, setTxType] = useState<"income" | "expense" | "">("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -235,31 +259,26 @@ export default function FinancePage() {
 
   return (
     <Shell title="Финансы">
-      <div className="page-head">
-        <div>
-          <div className="page-h1">Финансы</div>
-          <div className="page-desc">Доходы, расходы, долги и счета</div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost" onClick={() => analyticsApi.exportXlsx("finance")}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span> Excel
-          </button>
-          {isAdmin && (
-            <button className="btn btn-primary" onClick={() => setShowTxModal(true)}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Добавить
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Финансы"
+        subtitle="Доходы, расходы, долги и счета"
+        actions={
+          <>
+            <Button variant="ghost" icon="download" onClick={() => analyticsApi.exportXlsx("finance")}>Excel</Button>
+            {isAdmin && (
+              <Button variant="primary" icon="add" onClick={() => setShowTxModal(true)}>Добавить</Button>
+            )}
+          </>
+        }
+      />
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-        <input className="field-input" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ maxWidth: 140 }} placeholder="С" />
-        <span style={{ color: "var(--text3)" }}>—</span>
-        <input className="field-input" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ maxWidth: 140 }} placeholder="По" />
-        {(dateFrom || dateTo) && (
-          <button className="btn btn-ghost" onClick={() => { setDateFrom(""); setDateTo(""); }}>Сбросить</button>
-        )}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <DateRangePicker
+          value={{ from: dateFrom, to: dateTo }}
+          onChange={v => { setDateFrom(v.from); setDateTo(v.to); }}
+          onReset={() => { setDateFrom(""); setDateTo(""); }}
+        />
       </div>
 
       {/* Tabs */}
@@ -366,9 +385,7 @@ export default function FinancePage() {
         <div>
           {isAdmin && (
             <div style={{ marginBottom: 12 }}>
-              <button className="btn btn-primary" onClick={() => setShowTxModal(true)}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Добавить расход
-              </button>
+              <Button variant="primary" icon="add" onClick={() => setShowTxModal(true)}>Добавить расход</Button>
             </div>
           )}
           <div className="card" style={{ overflow: "auto" }}>
@@ -405,9 +422,7 @@ export default function FinancePage() {
         <div>
           {isAdmin && (
             <div style={{ marginBottom: 12 }}>
-              <button className="btn btn-primary" onClick={() => setShowDebtModal(true)}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Добавить долг
-              </button>
+              <Button variant="primary" icon="add" onClick={() => setShowDebtModal(true)}>Добавить долг</Button>
             </div>
           )}
           <div className="card" style={{ overflow: "auto" }}>
@@ -451,16 +466,7 @@ export default function FinancePage() {
         <div>
           {isAdmin && (
             <div style={{ marginBottom: 12 }}>
-              <button className="btn btn-primary" onClick={() => {
-                const accId = accounts[0]?.id;
-                const bal = prompt("Остаток (сом):");
-                if (!bal || !accId) return;
-                financeApi.createBalance({
-                  account_id: accId, date: new Date().toISOString().slice(0, 10), balance: parseInt(bal), comment: "",
-                }).then(load).catch((e: any) => alert(e.message));
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Снимок остатка
-              </button>
+              <Button variant="primary" icon="add" onClick={() => setShowBalanceModal(true)}>Снимок остатка</Button>
             </div>
           )}
           <div className="card" style={{ overflow: "auto" }}>
@@ -514,6 +520,13 @@ export default function FinancePage() {
         <DebtModal
           onClose={() => setShowDebtModal(false)}
           onSave={async (data) => { await financeApi.createDebt(data); await load(); }}
+        />
+      )}
+      {showBalanceModal && (
+        <AddBalanceModal
+          accounts={accounts}
+          onClose={() => setShowBalanceModal(false)}
+          onSave={async (data) => { await financeApi.createBalance(data); await load(); }}
         />
       )}
     </Shell>

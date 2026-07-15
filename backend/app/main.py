@@ -13,7 +13,7 @@ from app.middleware import last_seen_middleware
 from app.routers import (
     auth, users, projects, tasks, departments, boards, sales, marketing,
     search, notifications, meetings, bug_reports, leads, finance, payroll, analytics,
-    api_keys,
+    api_keys, lab_projects,
 )
 from app.routers import settings as settings_router
 
@@ -66,6 +66,7 @@ app.include_router(finance.router)
 app.include_router(payroll.router)
 app.include_router(analytics.router)
 app.include_router(api_keys.router)
+app.include_router(lab_projects.router)
 
 
 @app.get("/api/health")

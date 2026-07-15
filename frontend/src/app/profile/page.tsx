@@ -6,6 +6,7 @@ import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { api, apiKeys as apiKeysApi } from "@/lib/api";
 import { AVATAR_COLORS, ApiKey, ApiKeyCreated } from "@/lib/types";
+import { Button, Input, Card, PageHeader, FormField } from "@/components/ui";
 
 const COLORS = Object.keys(AVATAR_COLORS);
 
@@ -18,6 +19,8 @@ function ApiKeysSection() {
   const [newName, setNewName] = useState("");
   const [createdKey, setCreatedKey] = useState<ApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
+  const mcpUrl = typeof window !== "undefined" ? `${window.location.origin}/mcp` : "https://nevocean.nevoai.kg/mcp";
 
   async function load() {
     try {
@@ -57,37 +60,40 @@ function ApiKeysSection() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function copyUrl() {
+    navigator.clipboard.writeText(mcpUrl);
+    setUrlCopied(true);
+    setTimeout(() => setUrlCopied(false), 2000);
+  }
+
   return (
-    <div className="card" style={{ padding: 28, marginTop: 20 }}>
+    <Card padding={28} style={{ marginTop: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(99,102,241,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: "#6366f1" }}>vpn_key</span>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-dim)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--primary)" }}>vpn_key</span>
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text)" }}>API-ключи (для Claude)</div>
-            <div style={{ fontSize: 12, color: "var(--text3)" }}>Подключите Claude Desktop через MCP-сервер</div>
+            <div style={{ fontSize: 12, color: "var(--text3)" }}>Подключите Claude к NevoOcean через custom connector</div>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)} style={{ fontSize: 13 }}>
-          + Создать ключ
-        </button>
+        <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>+ Создать ключ</Button>
       </div>
 
-      {/* Newly created key — show once */}
       {createdKey && (
-        <div style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.3)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+        <div style={{ background: "var(--green-bg)", border: "1px solid var(--green)", borderRadius: 10, padding: 16, marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#16a34a" }}>check_circle</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#16a34a" }}>Ключ создан — скопируйте сейчас, больше не покажем!</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--green)" }}>check_circle</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--green)" }}>Ключ создан — скопируйте сейчас, больше не покажем!</span>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <code style={{ flex: 1, fontSize: 12, background: "var(--bg2)", padding: "8px 12px", borderRadius: 8, wordBreak: "break-all", color: "var(--text)", border: "1px solid var(--border)" }}>
               {createdKey.plain_key}
             </code>
-            <button className="btn" onClick={copyKey} style={{ flexShrink: 0, fontSize: 12 }}>
+            <Button variant="ghost" size="sm" onClick={copyKey} style={{ flexShrink: 0 }}>
               {copied ? "Скопировано!" : "Копировать"}
-            </button>
+            </Button>
           </div>
           <button onClick={() => setCreatedKey(null)} style={{ marginTop: 10, fontSize: 12, color: "var(--text3)", background: "none", border: "none", cursor: "pointer" }}>
             Закрыть
@@ -95,31 +101,29 @@ function ApiKeysSection() {
         </div>
       )}
 
-      {/* Create form */}
       {showCreate && !createdKey && (
         <div style={{ background: "var(--bg2)", borderRadius: 10, padding: 16, marginBottom: 20, border: "1px solid var(--border)" }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text2)", marginBottom: 8 }}>Название ключа</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <input
-              className="field-input"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              placeholder="Например: Мой Claude"
-              onKeyDown={e => e.key === "Enter" && handleCreate()}
-              style={{ flex: 1 }}
-              autoFocus
-            />
-            <button className="btn btn-primary" onClick={handleCreate} disabled={creating} style={{ flexShrink: 0 }}>
-              {creating ? "…" : "Создать"}
-            </button>
-            <button className="btn" onClick={() => { setShowCreate(false); setNewName(""); }} style={{ flexShrink: 0 }}>
+            <div style={{ flex: 1 }}>
+              <Input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Например: Мой Claude"
+                onKeyDown={e => e.key === "Enter" && handleCreate()}
+                autoFocus
+              />
+            </div>
+            <Button variant="primary" onClick={handleCreate} loading={creating} disabled={creating} style={{ flexShrink: 0 }}>
+              Создать
+            </Button>
+            <Button variant="ghost" onClick={() => { setShowCreate(false); setNewName(""); }} style={{ flexShrink: 0 }}>
               Отмена
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Keys list */}
       {loading ? (
         <div style={{ fontSize: 13, color: "var(--text3)", padding: "12px 0" }}>Загрузка…</div>
       ) : keys.length === 0 ? (
@@ -127,7 +131,7 @@ function ApiKeysSection() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {keys.map(k => (
-            <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "var(--bg2)", borderRadius: 8, border: "1px solid var(--border)" }}>
+            <div key={k.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "var(--bg2)", borderRadius: 8, border: "0.5px solid var(--border)" }}>
               <span className="material-symbols-outlined" style={{ fontSize: 18, color: "var(--text3)" }}>key</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{k.name}</div>
@@ -136,29 +140,43 @@ function ApiKeysSection() {
                   {k.last_used_at && ` · использован ${new Date(k.last_used_at).toLocaleDateString("ru")}`}
                 </div>
               </div>
-              <button
-                onClick={() => handleRevoke(k.id)}
-                style={{ fontSize: 12, color: "#ef4444", background: "none", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-              >
+              <Button variant="danger" size="sm" onClick={() => handleRevoke(k.id)}>
                 Отозвать
-              </button>
+              </Button>
             </div>
           ))}
         </div>
       )}
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "20px 0 16px" }} />
-      <div style={{ fontSize: 12, color: "var(--text3)", lineHeight: 1.7 }}>
-        <div style={{ fontWeight: 600, color: "var(--text2)", marginBottom: 6 }}>Как подключить к Claude Desktop:</div>
-        <ol style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Создайте ключ выше и скопируйте его</li>
-          <li>Скачайте и настройте MCP-сервер из папки <code>mcp-server/</code> репозитория</li>
-          <li>Добавьте в конфиг Claude Desktop переменные <code>NEVOOCEAN_API_URL</code> и <code>NEVOOCEAN_API_KEY</code></li>
-          <li>Перезапустите Claude Desktop — инструменты появятся автоматически</li>
-        </ol>
-        <div style={{ marginTop: 8 }}>Подробнее: <code>mcp-server/README.md</code></div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 8 }}>URL коннектора</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <code style={{ flex: 1, fontSize: 12, background: "var(--bg2)", padding: "8px 12px", borderRadius: 8, wordBreak: "break-all", color: "var(--text)", border: "0.5px solid var(--border)" }}>
+            {mcpUrl}
+          </code>
+          <Button variant="ghost" size="sm" onClick={copyUrl} style={{ flexShrink: 0 }}>
+            {urlCopied ? "Скопировано!" : "Копировать"}
+          </Button>
+        </div>
       </div>
-    </div>
+
+      <div style={{ fontSize: 12, color: "var(--text3)", lineHeight: 1.7 }}>
+        <div style={{ fontWeight: 600, color: "var(--text2)", marginBottom: 6 }}>Подключение к Claude:</div>
+        <ol style={{ margin: 0, paddingLeft: 18 }}>
+          <li>Создайте API-ключ выше и скопируйте его</li>
+          <li>Откройте Claude → <b>Settings → Connectors → Add custom connector</b></li>
+          <li>Вставьте URL коннектора (см. выше)</li>
+          <li>В поле авторизации вставьте свой API-ключ</li>
+          <li>Сохраните — Claude увидит ваши задачи и лиды</li>
+        </ol>
+        <div style={{ marginTop: 8 }}>
+          Claude будет действовать <b>от вашего имени, в рамках ваших прав</b>: сможет смотреть и создавать задачи,
+          назначать исполнителей, смотреть лиды — то же самое, что доступно вам в интерфейсе.
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -203,16 +221,15 @@ export default function ProfilePage() {
   return (
     <Shell title="Профиль">
       <div style={{ maxWidth: 900 }}>
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--text)", margin: 0 }}>Мой профиль</h1>
-          <p style={{ fontSize: 13, color: "var(--text3)", margin: "6px 0 0" }}>Управление персональными данными и настройками безопасности</p>
-        </div>
+        <PageHeader
+          title="Мой профиль"
+          subtitle="Управление персональными данными и настройками безопасности"
+        />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
 
           {/* LEFT — profile info */}
-          <div className="card" style={{ padding: 28 }}>
-            {/* Avatar */}
+          <Card padding={28} style={{ overflow: "visible" }}>
             <div style={{ position: "relative", width: 120, height: 120, marginBottom: 20 }}>
               <div style={{
                 width: 120, height: 120, borderRadius: 16,
@@ -222,18 +239,18 @@ export default function ProfilePage() {
               }}>
                 {(form.name || user.name).slice(0, 1).toUpperCase()}
               </div>
+              {/* Camera icon — not yet functional */}
               <div style={{
                 position: "absolute", bottom: -6, right: -6,
                 width: 32, height: 32, borderRadius: "50%",
                 background: "var(--bg2)", border: "2px solid var(--border)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer",
+                cursor: "default", opacity: 0.4, pointerEvents: "none",
               }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text2)" }}>photo_camera</span>
               </div>
             </div>
 
-            {/* Name + email + badges */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text)" }}>{user.name}</div>
               <div style={{ fontSize: 13, color: "var(--text3)", margin: "4px 0 10px" }}>{user.email}</div>
@@ -244,7 +261,7 @@ export default function ProfilePage() {
                   </span>
                 )}
                 {user.is_founder && (
-                  <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "rgba(249,115,22,0.1)", color: "#ea580c", fontWeight: 500, border: "1px solid rgba(249,115,22,0.2)" }}>
+                  <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "var(--orange-bg)", color: "var(--orange)", fontWeight: 500, border: "0.5px solid var(--orange)" }}>
                     Основатель
                   </span>
                 )}
@@ -253,19 +270,15 @@ export default function ProfilePage() {
 
             <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "0 0 20px" }} />
 
-            {/* Fields */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--text2)", marginBottom: 6 }}>Имя</label>
-              <input className="field-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--text2)", marginBottom: 6 }}>Должность</label>
-              <input className="field-input" value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
-            </div>
+            <FormField label="Имя">
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </FormField>
+            <FormField label="Должность">
+              <Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
+            </FormField>
 
-            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "0 0 20px" }} />
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "4px 0 20px" }} />
 
-            {/* Theme / color */}
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text3)", marginBottom: 12 }}>
                 Цвет аватара
@@ -284,14 +297,14 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <button className="btn btn-primary" onClick={saveProfile} disabled={saving}
-              style={{ marginTop: 24, width: "100%", justifyContent: "center", padding: "11px" }}>
-              {saving ? "Сохранение…" : "Сохранить изменения"}
-            </button>
-          </div>
+            <Button variant="primary" onClick={saveProfile} disabled={saving} loading={saving}
+              style={{ marginTop: 24, width: "100%", justifyContent: "center" }}>
+              Сохранить изменения
+            </Button>
+          </Card>
 
           {/* RIGHT — password */}
-          <div className="card" style={{ padding: 28 }}>
+          <Card padding={28}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-dim)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 20, color: "var(--primary)" }}>lock</span>
@@ -299,43 +312,39 @@ export default function ProfilePage() {
               <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text)" }}>Смена пароля</span>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--text2)", marginBottom: 6 }}>Новый пароль</label>
+            <FormField label="Новый пароль">
               <div style={{ position: "relative" }}>
-                <input className="field-input" type={showPw ? "text" : "password"}
+                <Input type={showPw ? "text" : "password"}
                   value={pwForm.password} onChange={(e) => setPwForm({ ...pwForm, password: e.target.value })}
                   placeholder="Введите новый пароль" style={{ paddingRight: 44 }} />
                 <button onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text3)" }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{showPw ? "visibility_off" : "visibility"}</span>
                 </button>
               </div>
-            </div>
+            </FormField>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--text2)", marginBottom: 6 }}>Подтверждение пароля</label>
+            <FormField label="Подтверждение пароля">
               <div style={{ position: "relative" }}>
-                <input className="field-input" type={showConfirm ? "text" : "password"}
+                <Input type={showConfirm ? "text" : "password"}
                   value={pwForm.confirm} onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
                   placeholder="Повторите новый пароль" style={{ paddingRight: 44 }} />
                 <button onClick={() => setShowConfirm(!showConfirm)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text3)" }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 20 }}>{showConfirm ? "visibility_off" : "visibility"}</span>
                 </button>
               </div>
-            </div>
+            </FormField>
 
-            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "0 0 20px" }} />
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "4px 0 20px" }} />
 
-            <button className="btn btn-primary" onClick={savePassword} disabled={pwSaving || !pwForm.password}
-              style={{ width: "100%", justifyContent: "center", padding: "11px" }}>
-              {pwSaving ? "Сохранение…" : "Сохранить пароль"}
-            </button>
-          </div>
+            <Button variant="primary" onClick={savePassword} disabled={pwSaving || !pwForm.password} loading={pwSaving}
+              style={{ width: "100%", justifyContent: "center" }}>
+              Сохранить пароль
+            </Button>
+          </Card>
         </div>
 
-        {/* API Keys section — full width below */}
         <ApiKeysSection />
 
-        {/* Mobile: stack columns */}
         <style jsx>{`
           @media (max-width: 700px) {
             div[style*="grid-template-columns: 1fr 1fr"] {

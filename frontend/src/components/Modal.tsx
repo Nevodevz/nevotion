@@ -43,7 +43,7 @@ export function Modal({
       <style jsx global>{`
         .modal-overlay {
           position: fixed; inset: 0; z-index: 100;
-          background: rgba(0,0,0,0.45);
+          background: var(--overlay);
           display: flex; align-items: center; justify-content: center;
           padding: 20px; animation: overlayIn 0.15s ease;
           backdrop-filter: blur(2px);

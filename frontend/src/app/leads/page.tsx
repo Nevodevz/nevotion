@@ -11,36 +11,19 @@ import type {
   Lead, LeadListResponse, LeadStats, LeadSource, ServiceItem, LeadStage,
   UserWithStats,
 } from "@/lib/types";
+import { Button, Input, Select, Textarea, FormField, Card, DateRangePicker } from "@/components/ui";
 
 function KpiCard({ label, value, icon }: { label: string; value: string | number; icon: string }) {
   return (
-    <div className="card" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 4, minWidth: 140, flex: "1 1 140px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text3)", fontSize: 12, marginBottom: 2 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
-        {label}
+    <Card style={{ minWidth: 140, flex: "1 1 140px" }} padding="16px 20px">
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text3)", fontSize: 12, marginBottom: 2 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
+          {label}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text1)" }}>{value}</div>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text1)" }}>{value}</div>
-    </div>
-  );
-}
-
-function DateRange({ from, to, onFrom, onTo, onReset }: {
-  from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void; onReset?: () => void;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", height: 34 }}>
-      <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text3)", padding: "0 8px", flexShrink: 0 }}>calendar_today</span>
-      <input type="date" value={from} onChange={e => onFrom(e.target.value)}
-        style={{ border: "none", background: "transparent", outline: "none", fontFamily: "inherit", fontSize: 12, color: "var(--text2)", width: 116, padding: "0 4px", cursor: "pointer" }} />
-      <span style={{ color: "var(--text3)", fontSize: 12, padding: "0 4px" }}>—</span>
-      <input type="date" value={to} onChange={e => onTo(e.target.value)}
-        style={{ border: "none", background: "transparent", outline: "none", fontFamily: "inherit", fontSize: 12, color: "var(--text2)", width: 116, padding: "0 4px", cursor: "pointer" }} />
-      {onReset && (from || to) && (
-        <button onClick={onReset} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--text3)", padding: "0 8px", display: "flex", alignItems: "center", height: "100%", flexShrink: 0 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>close</span>
-        </button>
-      )}
-    </div>
+    </Card>
   );
 }
 
@@ -106,7 +89,6 @@ function CreateLeadModal({ open, onClose, sources, services, stages, users, curr
       onCreated();
       onClose();
     } catch (err: any) {
-      // Try to detect duplicate 409
       const msg: string = err.message || "";
       if (msg.includes("existing")) {
         try {
@@ -132,74 +114,74 @@ function CreateLeadModal({ open, onClose, sources, services, stages, users, curr
           <div style={{ fontWeight: 600, color: "#b55d00", marginBottom: 6 }}>⚠️ Лид с таким номером уже существует</div>
           <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 10 }}>Клиент: <b>{dupe.client_name}</b></div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => { onClose(); router.push(`/leads/${dupe.id}`); }}>Открыть существующий</button>
-            <button className="btn" style={{ fontSize: 12 }} onClick={() => { setDupe(null); submit(true); }}>Всё равно создать</button>
-            <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setDupe(null)}>Отмена</button>
+            <Button variant="ghost" size="sm" onClick={() => { onClose(); router.push(`/leads/${dupe!.id}`); }}>
+              Открыть существующий
+            </Button>
+            <Button size="sm" onClick={() => { setDupe(null); submit(true); }}>
+              Всё равно создать
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDupe(null)}>
+              Отмена
+            </Button>
           </div>
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
         <div style={{ gridColumn: "1 / -1" }}>
-          <label className="form-label">Имя клиента *</label>
-          <input className="form-input" value={form.client_name} onChange={f("client_name")} placeholder="Алибек Джумалиев" />
+          <FormField label="Имя клиента" required>
+            <Input value={form.client_name} onChange={f("client_name")} placeholder="Алибек Джумалиев" />
+          </FormField>
         </div>
-        <div>
-          <label className="form-label">Компания</label>
-          <input className="form-input" value={form.company_name} onChange={f("company_name")} placeholder="ООО Пример" />
-        </div>
-        <div>
-          <label className="form-label">Телефон</label>
-          <input className="form-input" value={form.phone} onChange={f("phone")} placeholder="+996 700 000000" />
-        </div>
-        <div>
-          <label className="form-label">Источник</label>
-          <select className="form-input" value={form.source_id} onChange={f("source_id")}>
+        <FormField label="Компания">
+          <Input value={form.company_name} onChange={f("company_name")} placeholder="ООО Пример" />
+        </FormField>
+        <FormField label="Телефон">
+          <Input value={form.phone} onChange={f("phone")} placeholder="+996 700 000000" />
+        </FormField>
+        <FormField label="Источник">
+          <Select value={form.source_id} onChange={f("source_id")}>
             <option value="">— не выбрано —</option>
             {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Услуга</label>
-          <select className="form-input" value={form.service_id} onChange={f("service_id")}>
+          </Select>
+        </FormField>
+        <FormField label="Услуга">
+          <Select value={form.service_id} onChange={f("service_id")}>
             <option value="">— не выбрано —</option>
             {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Этап</label>
-          <select className="form-input" value={form.stage_id} onChange={f("stage_id")}>
+          </Select>
+        </FormField>
+        <FormField label="Этап">
+          <Select value={form.stage_id} onChange={f("stage_id")}>
             <option value="">— по умолчанию —</option>
             {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Потенциал (сом)</label>
-          <input className="form-input" type="number" value={form.potential_amount} onChange={f("potential_amount")} placeholder="0" />
-        </div>
+          </Select>
+        </FormField>
+        <FormField label="Потенциал (сом)">
+          <Input type="number" value={form.potential_amount} onChange={f("potential_amount")} placeholder="0" />
+        </FormField>
         {isAdmin && <>
-          <div>
-            <label className="form-label">Сеттер</label>
-            <select className="form-input" value={form.setter_id} onChange={f("setter_id")}>
+          <FormField label="Сеттер">
+            <Select value={form.setter_id} onChange={f("setter_id")}>
               <option value="">— текущий пользователь —</option>
               {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">Клоузер</label>
-            <select className="form-input" value={form.closer_id} onChange={f("closer_id")}>
+            </Select>
+          </FormField>
+          <FormField label="Клоузер">
+            <Select value={form.closer_id} onChange={f("closer_id")}>
               <option value="">— не назначен —</option>
               {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
+            </Select>
+          </FormField>
         </>}
         <div style={{ gridColumn: "1 / -1" }}>
-          <label className="form-label">Комментарий</label>
-          <textarea className="form-input" value={form.comment} onChange={f("comment")} rows={2} style={{ resize: "vertical" }} />
+          <FormField label="Комментарий">
+            <Textarea value={form.comment} onChange={f("comment")} rows={2} />
+          </FormField>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-        <button className="btn btn-ghost" onClick={onClose}>Отмена</button>
-        <button className="btn" onClick={() => submit(false)} disabled={saving}>{saving ? "Создание..." : "Создать лид"}</button>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+        <Button variant="ghost" onClick={onClose}>Отмена</Button>
+        <Button loading={saving} onClick={() => submit(false)}>Создать лид</Button>
       </div>
     </Modal>
   );
@@ -276,43 +258,52 @@ export default function LeadsPage() {
       </div>
 
       {/* Filters */}
-      <div className="card" style={{ padding: "12px 16px", marginBottom: 16 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <div style={{ position: "relative", flex: "1 1 200px" }}>
-            <span className="material-symbols-outlined" style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "var(--text3)", pointerEvents: "none" }}>search</span>
-            <input className="form-input" placeholder="Поиск..." value={search} onChange={e => setSearch(e.target.value)}
-              style={{ paddingLeft: 32, height: 34, fontSize: 13 }} />
+      <Card padding="12px 16px" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+          <div style={{ flex: "1 1 200px" }}>
+            <Input icon="search" placeholder="Поиск..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <DateRange from={dateFrom} to={dateTo} onFrom={setDateFrom} onTo={setDateTo} onReset={() => { setDateFrom(""); setDateTo(""); }} />
-          <select className="form-input" value={fSource} onChange={e => setFSource(e.target.value)} style={{ height: 34, fontSize: 12 }}>
-            <option value="">Все источники</option>
-            {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <select className="form-input" value={fService} onChange={e => setFService(e.target.value)} style={{ height: 34, fontSize: 12 }}>
-            <option value="">Все услуги</option>
-            {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <select className="form-input" value={fStage} onChange={e => setFStage(e.target.value)} style={{ height: 34, fontSize: 12 }}>
-            <option value="">Все этапы</option>
-            {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <select className="form-input" value={fSetter} onChange={e => setFSetter(e.target.value)} style={{ height: 34, fontSize: 12 }}>
-            <option value="">Все сеттеры</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-          <button className="btn" onClick={() => analyticsApi.exportXlsx("leads", { ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) })} style={{ height: 34, fontSize: 13, flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span>
+          <DateRangePicker
+            value={{ from: dateFrom, to: dateTo }}
+            onChange={v => { setDateFrom(v.from); setDateTo(v.to); }}
+            onReset={() => { setDateFrom(""); setDateTo(""); }}
+          />
+          <div style={{ minWidth: 140 }}>
+            <Select value={fSource} onChange={e => setFSource(e.target.value)}>
+              <option value="">Все источники</option>
+              {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </div>
+          <div style={{ minWidth: 130 }}>
+            <Select value={fService} onChange={e => setFService(e.target.value)}>
+              <option value="">Все услуги</option>
+              {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </div>
+          <div style={{ minWidth: 130 }}>
+            <Select value={fStage} onChange={e => setFStage(e.target.value)}>
+              <option value="">Все этапы</option>
+              {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </div>
+          <div style={{ minWidth: 140 }}>
+            <Select value={fSetter} onChange={e => setFSetter(e.target.value)}>
+              <option value="">Все сеттеры</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </Select>
+          </div>
+          <Button variant="ghost" icon="download"
+            onClick={() => analyticsApi.exportXlsx("leads", { ...(dateFrom ? { date_from: dateFrom } : {}), ...(dateTo ? { date_to: dateTo } : {}) })}>
             Excel
-          </button>
-          <button className="btn" onClick={() => setCreateModal(true)} style={{ height: 34, fontSize: 13, flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span>
+          </Button>
+          <Button icon="add" onClick={() => setCreateModal(true)}>
             Новый лид
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Table */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <Card padding={0}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
@@ -344,7 +335,8 @@ export default function LeadsPage() {
                   <td style={{ padding: "10px 12px", color: "var(--text2)", whiteSpace: "nowrap" }}>{fmtMoney(lead.potential_amount)}</td>
                   <td style={{ padding: "10px 12px" }}>
                     {lead.next_action_type
-                      ? <div><div style={{ fontSize: 12, fontWeight: 500 }}>{lead.next_action_type}</div>
+                      ? <div>
+                          <div style={{ fontSize: 12, fontWeight: 500 }}>{lead.next_action_type}</div>
                           {lead.next_action_at && <div style={{ fontSize: 11, color: "var(--text3)" }}>{fmtDate(lead.next_action_at)}</div>}
                         </div>
                       : <span style={{ fontSize: 11, color: "var(--red)", fontStyle: "italic" }}>Не задан</span>}
@@ -358,13 +350,13 @@ export default function LeadsPage() {
           <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 12, color: "var(--text3)" }}>{offset + 1}–{Math.min(offset + LIMIT, data.total)} из {data.total}</span>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button className="btn btn-ghost" disabled={page <= 1} onClick={() => load(offset - LIMIT)} style={{ fontSize: 12 }}>← Назад</button>
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => load(offset - LIMIT)}>← Назад</Button>
               <span style={{ fontSize: 12, color: "var(--text2)" }}>Стр. {page} из {totalPages}</span>
-              <button className="btn btn-ghost" disabled={page >= totalPages} onClick={() => load(offset + LIMIT)} style={{ fontSize: 12 }}>Вперёд →</button>
+              <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => load(offset + LIMIT)}>Вперёд →</Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {createModal && (
         <CreateLeadModal

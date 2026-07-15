@@ -19,7 +19,7 @@ const FINANCE_SLUG = "finance";
 const SALES_SUBNAV = [
   { href: "/leads",    icon: "contacts",      label: "Лиды" },
   { href: "/funnel",   icon: "filter_alt",    label: "Воронка продаж" },
-  { href: "/dept/sales/meetings", icon: "handshake", label: "Встречи" },
+  { href: "/dept/sales?meetings=1", icon: "handshake", label: "Встречи" },
   { href: "/dept/sales", icon: "bar_chart",   label: "Дневник" },
 ];
 

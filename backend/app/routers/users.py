@@ -54,7 +54,7 @@ def _stats(db: Session, user: User) -> UserWithStats:
         prompters = db.query(User).filter(
             User.position == "Промпт-инженер", User.is_active == True
         ).all()
-        ids = [p.id for p in prompters]
+        ids = [p.id for p in prompters] + [user.id]
         projects = db.query(Project).filter(Project.owner_id.in_(ids)).all() if ids else []
     else:
         projects = db.query(Project).filter(Project.owner_id == user.id).all()

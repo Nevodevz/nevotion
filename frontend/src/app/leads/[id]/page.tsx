@@ -4,13 +4,15 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Modal } from "@/components/Modal";
+import { Button, ConfirmModal } from "@/components/ui";
+import { TransitionModal, stageKind, STAGE_ACTION_LABELS } from "@/components/TransitionModal";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { leadApi, settingsApi, api } from "@/lib/api";
 import Link from "next/link";
 import type {
   LeadDetail, LeadStage, LeadSource, ServiceItem, UserWithStats,
-  LeadActivity, LeadFile, Project,
+  LeadActivity, LeadFile, Project, RejectReason,
 } from "@/lib/types";
 import { ACTIVITY_TYPES, FILE_TYPES } from "@/lib/types";
 
@@ -20,7 +22,6 @@ function fmtDate(iso: string | null) {
   const D = iso.slice(8, 10), M = iso.slice(5, 7), Y = iso.slice(0, 4);
   return `${D}.${M}.${Y}`;
 }
-// Convert ISO UTC → "YYYY-MM-DDTHH:MM" in Asia/Bishkek (UTC+6)
 function utcToLocal(s: string): string {
   const Y = +s.slice(0, 4), Mo = +s.slice(5, 7) - 1, D = +s.slice(8, 10);
   const h = +s.slice(11, 13), m = +s.slice(14, 16);
@@ -28,7 +29,6 @@ function utcToLocal(s: string): string {
   const ld = new Date(ms);
   return `${ld.getUTCFullYear()}-${String(ld.getUTCMonth()+1).padStart(2,"0")}-${String(ld.getUTCDate()).padStart(2,"0")}T${String(ld.getUTCHours()).padStart(2,"0")}:${String(ld.getUTCMinutes()).padStart(2,"0")}`;
 }
-// Convert "YYYY-MM-DDTHH:MM" (Bishkek local) → ISO UTC string for backend
 function localToUTC(s: string): string {
   const [d, t = "00:00"] = s.split("T");
   const [Y, Mo, D] = d.split("-").map(Number);
@@ -97,41 +97,43 @@ function StageLine({ stages, currentStageId, history }: {
   }
 
   return (
-    <div style={{ display: "flex", gap: 0, flexWrap: "wrap", alignItems: "center" }}>
-      {stages.map((s, i) => {
-        const isCurrent = s.id === currentStageId;
-        const isPast = !!entryDates[s.id] && !isCurrent;
-        const entryDate = entryDates[s.id];
-        const daysOnCurrent = isCurrent ? daysSince(entryDate) : null;
+    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{ display: "flex", gap: 0, alignItems: "center", minWidth: "max-content" }}>
+        {stages.map((s, i) => {
+          const isCurrent = s.id === currentStageId;
+          const isPast = !!entryDates[s.id] && !isCurrent;
+          const entryDate = entryDates[s.id];
+          const daysOnCurrent = isCurrent ? daysSince(entryDate) : null;
 
-        return (
-          <div key={s.id} style={{ display: "flex", alignItems: "center" }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                background: isCurrent ? s.color : isPast ? s.color + "44" : "var(--bg3)",
-                color: isCurrent ? "#fff" : isPast ? s.color : "var(--text3)",
-                fontSize: 11, fontWeight: 700, border: isCurrent ? `2px solid ${s.color}` : "2px solid transparent",
-                transition: "all 0.2s",
-              }}>
-                {isPast ? <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span> : i + 1}
+          return (
+            <div key={s.id} style={{ display: "flex", alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: isCurrent ? s.color : isPast ? s.color + "44" : "var(--bg3)",
+                  color: isCurrent ? "#fff" : isPast ? s.color : "var(--text3)",
+                  fontSize: 11, fontWeight: 700, border: isCurrent ? `2px solid ${s.color}` : "2px solid transparent",
+                  flexShrink: 0,
+                }}>
+                  {isPast ? <span className="material-symbols-outlined" style={{ fontSize: 14 }}>check</span> : i + 1}
+                </div>
+                <div style={{ fontSize: 11, color: isCurrent ? s.color : "var(--text3)", fontWeight: isCurrent ? 700 : 400, maxWidth: 72, textAlign: "center", lineHeight: 1.3 }}>
+                  {s.name}
+                </div>
+                {isCurrent && daysOnCurrent !== null && (
+                  <div style={{ fontSize: 11, color: "var(--text3)" }}>{daysOnCurrent}д</div>
+                )}
+                {isPast && entryDate && (
+                  <div style={{ fontSize: 11, color: "var(--text3)" }}>{fmtDate(entryDate)}</div>
+                )}
               </div>
-              <div style={{ fontSize: 9, color: isCurrent ? s.color : "var(--text3)", fontWeight: isCurrent ? 700 : 400, maxWidth: 64, textAlign: "center", lineHeight: 1.2 }}>
-                {s.name}
-              </div>
-              {isCurrent && daysOnCurrent !== null && (
-                <div style={{ fontSize: 9, color: "var(--text3)" }}>{daysOnCurrent}д</div>
-              )}
-              {isPast && entryDate && (
-                <div style={{ fontSize: 9, color: "var(--text3)" }}>{fmtDate(entryDate)}</div>
+              {i < stages.length - 1 && (
+                <div style={{ width: 20, height: 2, background: isPast || isCurrent ? s.color + "66" : "var(--border)", margin: "0 2px", marginBottom: 22 }} />
               )}
             </div>
-            {i < stages.length - 1 && (
-              <div style={{ width: 20, height: 2, background: isPast || isCurrent ? s.color + "66" : "var(--border)", margin: "0 2px", marginBottom: 20 }} />
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -181,7 +183,7 @@ function AddActivityModal({ leadId, users, onClose, onAdded }: {
       toast("Касание добавлено", "success");
       onAdded();
       onClose();
-    } catch (e: any) { toast(e.message, "error"); }
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
     setSaving(false);
   }
 
@@ -231,7 +233,7 @@ function AddFileModal({ leadId, onClose, onAdded }: { leadId: number; onClose: (
       await leadApi.addFile(leadId, { name: form.name, url: form.url, file_type: form.file_type });
       toast("Файл добавлен", "success");
       onAdded(); onClose();
-    } catch (e: any) { toast(e.message, "error"); }
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
     setSaving(false);
   }
 
@@ -255,49 +257,6 @@ function AddFileModal({ leadId, onClose, onAdded }: { leadId: number; onClose: (
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button className="btn btn-ghost" onClick={onClose}>Отмена</button>
           <button className="btn" onClick={submit} disabled={saving}>{saving ? "Сохранение..." : "Добавить"}</button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ── Change Stage Modal ───────────────────────────────────────────
-function ChangeStageModal({ lead, stages, onClose, onChanged }: {
-  lead: LeadDetail; stages: LeadStage[]; onClose: () => void; onChanged: () => void;
-}) {
-  const toast = useToast();
-  const [stageId, setStageId] = useState(String(lead.stage_id ?? ""));
-  const [comment, setComment] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function submit() {
-    if (!stageId) { toast("Выберите этап", "error"); return; }
-    setSaving(true);
-    try {
-      await leadApi.changeStage(lead.id, Number(stageId), comment);
-      toast("Этап изменён", "success");
-      onChanged(); onClose();
-    } catch (e: any) { toast(e.message, "error"); }
-    setSaving(false);
-  }
-
-  return (
-    <Modal open title="Сменить этап" onClose={onClose}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div>
-          <label className="form-label">Новый этап</label>
-          <select className="form-input" value={stageId} onChange={e => setStageId(e.target.value)}>
-            <option value="">— выберите —</option>
-            {stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="form-label">Комментарий</label>
-          <textarea className="form-input" rows={2} value={comment} onChange={e => setComment(e.target.value)} style={{ resize: "vertical" }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button className="btn" onClick={submit} disabled={saving}>{saving ? "Сохранение..." : "Сменить этап"}</button>
         </div>
       </div>
     </Modal>
@@ -361,7 +320,7 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
       });
       toast("Лид обновлён", "success");
       onSaved(); onClose();
-    } catch (e: any) { toast(e.message, "error"); }
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
     setSaving(false);
   }
 
@@ -372,42 +331,15 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
           <label className="form-label">Имя клиента *</label>
           <input className="form-input" value={form.client_name} onChange={f("client_name")} />
         </div>
-        <div>
-          <label className="form-label">Компания</label>
-          <input className="form-input" value={form.company_name} onChange={f("company_name")} />
-        </div>
-        <div>
-          <label className="form-label">Телефон</label>
-          <input className="form-input" value={form.phone} onChange={f("phone")} />
-        </div>
-        <div>
-          <label className="form-label">WhatsApp</label>
-          <input className="form-input" value={form.whatsapp} onChange={f("whatsapp")} />
-        </div>
-        <div>
-          <label className="form-label">Instagram</label>
-          <input className="form-input" value={form.instagram} onChange={f("instagram")} />
-        </div>
-        <div>
-          <label className="form-label">Email</label>
-          <input className="form-input" value={form.email} onChange={f("email")} />
-        </div>
-        <div>
-          <label className="form-label">Адрес</label>
-          <input className="form-input" value={form.address} onChange={f("address")} />
-        </div>
-        <div>
-          <label className="form-label">Сайт</label>
-          <input className="form-input" value={form.website} onChange={f("website")} />
-        </div>
-        <div>
-          <label className="form-label">Отрасль</label>
-          <input className="form-input" value={form.industry} onChange={f("industry")} />
-        </div>
-        <div>
-          <label className="form-label">Кол-во сотрудников</label>
-          <input className="form-input" type="number" value={form.employees_count} onChange={f("employees_count")} />
-        </div>
+        <div><label className="form-label">Компания</label><input className="form-input" value={form.company_name} onChange={f("company_name")} /></div>
+        <div><label className="form-label">Телефон</label><input className="form-input" value={form.phone} onChange={f("phone")} /></div>
+        <div><label className="form-label">WhatsApp</label><input className="form-input" value={form.whatsapp} onChange={f("whatsapp")} /></div>
+        <div><label className="form-label">Instagram</label><input className="form-input" value={form.instagram} onChange={f("instagram")} /></div>
+        <div><label className="form-label">Email</label><input className="form-input" value={form.email} onChange={f("email")} /></div>
+        <div><label className="form-label">Адрес</label><input className="form-input" value={form.address} onChange={f("address")} /></div>
+        <div><label className="form-label">Сайт</label><input className="form-input" value={form.website} onChange={f("website")} /></div>
+        <div><label className="form-label">Отрасль</label><input className="form-input" value={form.industry} onChange={f("industry")} /></div>
+        <div><label className="form-label">Кол-во сотрудников</label><input className="form-input" type="number" value={form.employees_count} onChange={f("employees_count")} /></div>
         <div>
           <label className="form-label">Источник</label>
           <select className="form-input" value={form.source_id} onChange={f("source_id")}>
@@ -436,14 +368,8 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
             {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </div>
-        <div>
-          <label className="form-label">Потенциал (сом)</label>
-          <input className="form-input" type="number" value={form.potential_amount} onChange={f("potential_amount")} />
-        </div>
-        <div>
-          <label className="form-label">Следующий шаг</label>
-          <input className="form-input" value={form.next_action_type} onChange={f("next_action_type")} placeholder="Позвонить, отправить КП..." />
-        </div>
+        <div><label className="form-label">Потенциал (сом)</label><input className="form-input" type="number" value={form.potential_amount} onChange={f("potential_amount")} /></div>
+        <div><label className="form-label">Следующий шаг</label><input className="form-input" value={form.next_action_type} onChange={f("next_action_type")} placeholder="Позвонить, отправить КП..." /></div>
         <div style={{ gridColumn: "1 / -1" }}>
           <label className="form-label">Дата следующего действия</label>
           <input className="form-input" type="datetime-local" value={form.next_action_at} onChange={f("next_action_at")} />
@@ -461,35 +387,109 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
   );
 }
 
+// ── Actions Dropdown ─────────────────────────────────────────────
+function ActionsDropdown({
+  stages,
+  currentStageId,
+  onSelect,
+}: {
+  stages: LeadStage[];
+  currentStageId: number | null;
+  onSelect: (stage: LeadStage) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const available = stages.filter((s) => s.id !== currentStageId);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <Button variant="ghost" size="sm" onClick={() => setOpen((v) => !v)}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>swap_horiz</span>
+        Действия
+        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>expand_more</span>
+      </Button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "calc(100% + 4px)",
+              zIndex: 51,
+              background: "var(--bg2)",
+              border: "0.5px solid var(--border)",
+              borderRadius: 10,
+              minWidth: 220,
+              boxShadow: "var(--shadow-md)",
+              padding: "4px 0",
+              overflow: "hidden",
+            }}
+          >
+            {available.map((s) => {
+              const k = stageKind(s);
+              const label = k !== "generic" ? STAGE_ACTION_LABELS[k] : `→ ${s.name}`;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => { setOpen(false); onSelect(s); }}
+                  style={{
+                    width: "100%",
+                    padding: "9px 14px",
+                    textAlign: "left",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    color: "var(--text)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg3)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────
 export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
-  const { user, isAdmin } = useApp();
+  const { isAdmin } = useApp();
 
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [users, setUsers] = useState<UserWithStats[]>([]);
+  const [rejectReasons, setRejectReasons] = useState<RejectReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkedProject, setLinkedProject] = useState<Project | null>(null);
 
   const [editModal, setEditModal] = useState(false);
-  const [stageModal, setStageModal] = useState(false);
+  const [transitionStage, setTransitionStage] = useState<LeadStage | null>(null);
   const [actModal, setActModal] = useState(false);
   const [fileModal, setFileModal] = useState(false);
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [deleteFileId, setDeleteFileId] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     if (!id) return;
     try {
       const d = await leadApi.get(Number(id));
       setLead(d);
-      // Check for linked project in dev
       api.listProjects().then(prjs => {
-        const proj = prjs.find(p => p.lead_id === d.id) ?? null;
-        setLinkedProject(proj);
+        setLinkedProject(prjs.find(p => p.lead_id === d.id) ?? null);
       }).catch(() => {});
     } catch { toast("Лид не найден", "error"); router.push("/leads"); }
     setLoading(false);
@@ -499,6 +499,7 @@ export default function LeadDetailPage() {
     settingsApi.listStages().then(setStages).catch(() => {});
     settingsApi.listSources().then(setSources).catch(() => {});
     settingsApi.listServices().then(setServices).catch(() => {});
+    settingsApi.listRejectReasons().then(setRejectReasons).catch(() => {});
     api.listUsers().then(setUsers).catch(() => {});
   }, []);
 
@@ -506,27 +507,44 @@ export default function LeadDetailPage() {
 
   async function handleArchive() {
     if (!lead) return;
-    if (!confirm("Архивировать лид?")) return;
     try {
       await leadApi.archive(lead.id);
       toast("Лид архивирован", "success");
       router.push("/leads");
-    } catch (e: any) { toast(e.message, "error"); }
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
   }
 
-  async function deleteFile(fileId: number) {
+  async function handleDeleteFile(fileId: number) {
     if (!lead) return;
-    if (!confirm("Удалить файл?")) return;
     try {
       await leadApi.deleteFile(lead.id, fileId);
       toast("Файл удалён", "success");
       reload();
-    } catch (e: any) { toast(e.message, "error"); }
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
+  }
+
+  async function handleTransitionConfirm(comment: string, extra: Record<string, unknown>) {
+    if (!lead || !transitionStage) return;
+    try {
+      await leadApi.changeStage(lead.id, transitionStage.id, comment, extra);
+      toast(
+        transitionStage.is_won ? "Оплата проведена! Каскад запущен." : `Этап → «${transitionStage.name}»`,
+        "success"
+      );
+      reload();
+      setTransitionStage(null);
+    } catch (e: unknown) {
+      toast((e as Error).message || "Ошибка смены этапа", "error");
+    }
   }
 
   if (loading) return <Shell title="Лид"><div style={{ padding: 40, color: "var(--text3)", textAlign: "center" }}>Загрузка...</div></Shell>;
   if (!lead) return null;
 
+  const currentKind = lead.stage ? stageKind(lead.stage) : "generic";
+  const wonStage = stages.find((s) => s.is_won || stageKind(s) === "won");
+  const showPayButton =
+    (currentKind === "waiting_payment" || currentKind === "contract") && wonStage;
   const noNextAction = !lead.next_action_type;
 
   return (
@@ -559,19 +577,33 @@ export default function LeadDetailPage() {
               <span>Создан: {fmtDate(lead.created_at)}</span>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
-            <button className="btn btn-ghost" onClick={() => setEditModal(true)} style={{ fontSize: 12 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>edit</span> Изменить
-            </button>
-            <button className="btn btn-ghost" onClick={() => setStageModal(true)} style={{ fontSize: 12 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>swap_horiz</span> Сменить этап
-            </button>
-            <button className="btn btn-ghost" onClick={() => setActModal(true)} style={{ fontSize: 12 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>add_comment</span> Касание
-            </button>
-            <button className="btn btn-ghost" onClick={handleArchive} style={{ fontSize: 12, color: "var(--red)" }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>archive</span> Архивировать
-            </button>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0, alignItems: "center" }}>
+            {showPayButton && wonStage && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon="payments"
+                onClick={() => setTransitionStage(wonStage)}
+              >
+                Провести оплату
+              </Button>
+            )}
+            <ActionsDropdown
+              stages={stages}
+              currentStageId={lead.stage_id}
+              onSelect={setTransitionStage}
+            />
+            <Button variant="ghost" size="sm" icon="edit" onClick={() => setEditModal(true)}>
+              Изменить
+            </Button>
+            <Button variant="ghost" size="sm" icon="add_comment" onClick={() => setActModal(true)}>
+              Касание
+            </Button>
+            <Button variant="danger" size="sm" icon="archive" onClick={() => setArchiveConfirm(true)}>
+              Архив
+            </Button>
           </div>
         </div>
       </div>
@@ -584,7 +616,7 @@ export default function LeadDetailPage() {
       {/* Next action */}
       <Section title="Следующее действие" icon="event_upcoming">
         {noNextAction ? (
-          <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--red-bg, rgba(186,26,26,.1))", border: "1px solid var(--red)", color: "var(--red)", fontSize: 13, fontWeight: 500 }}>
+          <div style={{ padding: "12px 16px", borderRadius: 8, background: "rgba(186,26,26,0.1)", border: "1px solid var(--red)", color: "var(--red)", fontSize: 13, fontWeight: 500 }}>
             ⚠️ Следующее действие не задано — назначьте его в редактировании лида
           </div>
         ) : (
@@ -620,7 +652,7 @@ export default function LeadDetailPage() {
           )}
         </Section>
 
-        {/* Financial summary — real Deal data */}
+        {/* Financial summary */}
         <div>
           <Section title="Финансовая сводка" icon="account_balance_wallet">
             {(() => {
@@ -678,14 +710,9 @@ export default function LeadDetailPage() {
             })()}
           </Section>
 
-          {/* Linked project */}
           {linkedProject && (
             <Section title="Проект в разработке" icon="code">
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "10px 12px", background: "var(--primary-dim)",
-                borderRadius: 8, marginBottom: 8,
-              }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--primary-dim)", borderRadius: 8 }}>
                 <div>
                   <div style={{ fontWeight: 600, color: "var(--primary)", fontSize: 14 }}>{linkedProject.company}</div>
                   <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>
@@ -704,38 +731,36 @@ export default function LeadDetailPage() {
           )}
         </div>
 
-          {/* Meetings */}
-          <Section title={`Встречи (${lead.meetings.length})`} icon="calendar_month">
-            {lead.meetings.length === 0 && <div style={{ color: "var(--text3)", fontSize: 13 }}>Встреч нет</div>}
-            {lead.meetings.map(m => (
-              <div key={m.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
-                <div style={{ fontWeight: 600 }}>{m.client_name}</div>
-                <div style={{ color: "var(--text3)", fontSize: 12 }}>
-                  {fmtDateTime(m.meeting_date)} · {m.closer?.name || "—"}
-                </div>
-              </div>
-            ))}
-          </Section>
+        {/* Meetings */}
+        <Section title={`Встречи (${lead.meetings.length})`} icon="calendar_month">
+          {lead.meetings.length === 0 && <div style={{ color: "var(--text3)", fontSize: 13 }}>Встреч нет</div>}
+          {lead.meetings.map(m => (
+            <div key={m.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+              <div style={{ fontWeight: 600 }}>{m.client_name}</div>
+              <div style={{ color: "var(--text3)", fontSize: 12 }}>{fmtDateTime(m.meeting_date)} · {m.closer?.name || "—"}</div>
+            </div>
+          ))}
+        </Section>
 
-          {/* Tasks */}
-          <Section title={`Задачи (${lead.tasks.length})`} icon="task_alt">
-            {lead.tasks.length === 0 && <div style={{ color: "var(--text3)", fontSize: 13 }}>Задач нет</div>}
-            {lead.tasks.map(t => (
-              <div key={t.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
-                <div style={{ fontWeight: 600, textDecoration: t.completed_at ? "line-through" : "none", color: t.completed_at ? "var(--text3)" : "var(--text1)" }}>{t.title}</div>
-                <div style={{ color: "var(--text3)", fontSize: 12 }}>
-                  {t.owner?.name || "—"}{t.due_date ? ` · до ${fmtDate(t.due_date)}` : ""}
-                </div>
-              </div>
-            ))}
-          </Section>
+        {/* Tasks */}
+        <Section title={`Задачи (${lead.tasks.length})`} icon="task_alt">
+          {lead.tasks.length === 0 && <div style={{ color: "var(--text3)", fontSize: 13 }}>Задач нет</div>}
+          {lead.tasks.map(t => (
+            <div key={t.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+              <div style={{ fontWeight: 600, textDecoration: t.completed_at ? "line-through" : "none", color: t.completed_at ? "var(--text3)" : "var(--text1)" }}>{t.title}</div>
+              <div style={{ color: "var(--text3)", fontSize: 12 }}>{t.owner?.name || "—"}{t.due_date ? ` · до ${fmtDate(t.due_date)}` : ""}</div>
+            </div>
+          ))}
+        </Section>
       </div>
 
       {/* Activities */}
       <Section title="История касаний" icon="history"
-        action={<button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setActModal(true)}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Добавить
-        </button>}>
+        action={
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setActModal(true)}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Добавить
+          </button>
+        }>
         {lead.activities.length === 0 && <div style={{ color: "var(--text3)", fontSize: 13 }}>Касаний ещё нет</div>}
         {lead.activities.length > 0 && (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -768,9 +793,11 @@ export default function LeadDetailPage() {
 
       {/* Files */}
       <Section title="Файлы и документы" icon="attach_file"
-        action={<button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setFileModal(true)}>
-          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Добавить
-        </button>}>
+        action={
+          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setFileModal(true)}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add</span> Добавить
+          </button>
+        }>
         {lead.files.length === 0 && <div style={{ color: "var(--text3)", fontSize: 13 }}>Файлов нет</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {lead.files.map((f: LeadFile) => (
@@ -780,7 +807,7 @@ export default function LeadDetailPage() {
                 <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "var(--primary)", textDecoration: "none" }}>{f.name}</a>
                 <div style={{ fontSize: 11, color: "var(--text3)" }}>{f.file_type}{f.uploader ? ` · ${f.uploader.name}` : ""} · {fmtDate(f.created_at)}</div>
               </div>
-              <button onClick={() => deleteFile(f.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--text3)", display: "flex" }}>
+              <button onClick={() => setDeleteFileId(f.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--text3)", display: "flex" }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
               </button>
             </div>
@@ -789,10 +816,69 @@ export default function LeadDetailPage() {
       </Section>
 
       {/* Modals */}
-      {editModal && <EditLeadModal lead={lead} sources={sources} services={services} users={users} onClose={() => setEditModal(false)} onSaved={reload} />}
-      {stageModal && <ChangeStageModal lead={lead} stages={stages} onClose={() => setStageModal(false)} onChanged={reload} />}
-      {actModal && <AddActivityModal leadId={lead.id} users={users} onClose={() => setActModal(false)} onAdded={reload} />}
-      {fileModal && <AddFileModal leadId={lead.id} onClose={() => setFileModal(false)} onAdded={reload} />}
+      {editModal && (
+        <EditLeadModal lead={lead} sources={sources} services={services} users={users} onClose={() => setEditModal(false)} onSaved={reload} />
+      )}
+      {actModal && (
+        <AddActivityModal leadId={lead.id} users={users} onClose={() => setActModal(false)} onAdded={reload} />
+      )}
+      {fileModal && (
+        <AddFileModal leadId={lead.id} onClose={() => setFileModal(false)} onAdded={reload} />
+      )}
+      {transitionStage && (
+        <TransitionModal
+          stage={transitionStage}
+          card={{
+            client_name: lead.client_name,
+            company_name: lead.company_name,
+            potential_amount: lead.potential_amount,
+            active_deal: lead.active_deal,
+            closer_id: lead.closer_id,
+            closer: lead.closer,
+            setter_id: lead.setter_id,
+            setter: lead.setter,
+          }}
+          users={users}
+          rejectReasons={rejectReasons}
+          onConfirm={handleTransitionConfirm}
+          onCancel={() => setTransitionStage(null)}
+        />
+      )}
+      <ConfirmModal
+        open={archiveConfirm}
+        title="Архивировать лид"
+        message="Лид будет перемещён в архив. Все данные сохранятся, вы сможете найти его через фильтры."
+        confirmLabel="Архивировать"
+        variant="danger"
+        onConfirm={async () => {
+          setArchiveConfirm(false);
+          await handleArchive();
+        }}
+        onCancel={() => setArchiveConfirm(false)}
+      />
+      <ConfirmModal
+        open={deleteFileId !== null}
+        title="Удалить файл"
+        message="Файл будет удалён без возможности восстановления."
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={async () => {
+          const fid = deleteFileId!;
+          setDeleteFileId(null);
+          await handleDeleteFile(fid);
+        }}
+        onCancel={() => setDeleteFileId(null)}
+      />
+
+      <style jsx global>{`
+        .form-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text2); font-weight: 500; }
+        .form-input { background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; font-size: 13px; color: var(--text); font-family: inherit; outline: none; transition: border-color 0.15s; width: 100%; box-sizing: border-box; }
+        .form-input:focus { border-color: var(--primary); }
+        .btn { padding: 8px 14px; border-radius: 7px; font-size: 13px; font-family: inherit; cursor: pointer; border: none; font-weight: 500; transition: all 0.13s; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-ghost { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+        .btn-ghost:hover { background: var(--bg2); }
+        @media (max-width: 768px) { .lead-grid { grid-template-columns: 1fr !important; } }
+      `}</style>
     </Shell>
   );
 }

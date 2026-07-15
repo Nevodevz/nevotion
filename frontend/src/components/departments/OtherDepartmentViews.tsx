@@ -8,8 +8,10 @@ import { BoardView } from "@/components/BoardView";
 import { ColumnsModal } from "./SalesDepartmentView";
 import { meetingApi } from "@/lib/api";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/context/ToastContext";
 import { api } from "@/lib/api";
 import { Department, UserWithStats, MarketingRecord, ColumnDef, Board, AdExpense, SourceMetric, MarketingTotals, LeadSource } from "@/lib/types";
+import { Button, Input, Select, Textarea, FormField, DateRangePicker, ConfirmModal } from "@/components/ui";
 
 function fmtDate(d: string) {
   const dt = new Date(d);
@@ -52,6 +54,7 @@ function ContentPlanTab({ dept }: { dept: Department }) {
   const [recModal, setRecModal] = useState(false);
   const [editing, setEditing] = useState<MarketingRecord | null>(null);
   const [colModal, setColModal] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const load = useCallback(() => {
     api.marketingRecords({ date_from: fFrom || undefined, date_to: fTo || undefined }).then(setRecords).catch(() => {});
@@ -61,16 +64,15 @@ function ContentPlanTab({ dept }: { dept: Department }) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input className="field-input" style={{ width: "auto" }} type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
-          <span style={{ color: "var(--text3)" }}>—</span>
-          <input className="field-input" style={{ width: "auto" }} type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
-          {(fFrom || fTo) && <button className="btn btn-ghost" onClick={() => { setFFrom(""); setFTo(""); }}>Сбросить</button>}
-        </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
+        <DateRangePicker
+          value={{ from: fFrom, to: fTo }}
+          onChange={v => { setFFrom(v.from); setFTo(v.to); }}
+          onReset={() => { setFFrom(""); setFTo(""); }}
+        />
         <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && <button className="btn btn-ghost" onClick={() => setColModal(true)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>view_column</span> Колонки</button>}
-          <button className="btn btn-primary" onClick={() => { setEditing(null); setRecModal(true); }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Запись</button>
+          {isAdmin && <Button variant="ghost" icon="view_column" onClick={() => setColModal(true)}>Колонки</Button>}
+          <Button icon="add" onClick={() => { setEditing(null); setRecModal(true); }}>Запись</Button>
         </div>
       </div>
       <div className="card" style={{ overflow: "hidden" }}><div style={{ overflowX: "auto" }}>
@@ -81,7 +83,7 @@ function ContentPlanTab({ dept }: { dept: Department }) {
               <tr key={r.id} onClick={() => { setEditing(r); setRecModal(true); }} style={{ cursor: "pointer" }}>
                 <td style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 12 }}>{fmtDate(r.record_date)}</td>
                 {columns.map((c) => <td key={c.id} style={{ color: "var(--text)" }}>{r.fields[c.key] ?? "—"}</td>)}
-                {isAdmin && <td style={{ width: 40 }}><button className="row-act" onClick={async (e) => { e.stopPropagation(); if (confirm("Удалить?")) { await api.deleteMarketingRecord(r.id); load(); } }}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span></button></td>}
+                {isAdmin && <td style={{ width: 40 }}><button className="row-act" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span></button></td>}
               </tr>
             ))}
             {records.length === 0 && <tr><td colSpan={columns.length + 2} style={{ textAlign: "center", color: "var(--text3)", padding: "40px 20px", fontSize: 14 }}>Нет записей. Нажмите «+ Запись» чтобы добавить.</td></tr>}
@@ -90,19 +92,37 @@ function ContentPlanTab({ dept }: { dept: Department }) {
       </div></div>
       <MarketingRecordModal open={recModal} onClose={() => setRecModal(false)} onSaved={load} record={editing} columns={columns} userId={user?.id} />
       <ColumnsModal open={colModal} onClose={() => setColModal(false)} onSaved={() => api.marketingColumns().then(setColumns)} columns={columns} addFn={api.addMarketingColumn} delFn={api.deleteMarketingColumn} />
+      <ConfirmModal
+        open={deleteId !== null}
+        title="Удалить запись?"
+        message="Запись будет удалена без возможности восстановления."
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteId !== null) {
+            await api.deleteMarketingRecord(deleteId).catch(() => {});
+            setDeleteId(null);
+            load();
+          }
+        }}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
 
 function MarketingRecordModal({ open, onClose, onSaved, record, columns, userId }: any) {
+  const toast = useToast();
   const [date, setDate] = useState("");
   const [fields, setFields] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     if (record) { setDate(record.record_date); setFields(record.fields || {}); }
     else { setDate(new Date().toISOString().slice(0, 10)); setFields({}); }
   }, [open, record]);
+
   async function save() {
     setSaving(true);
     try {
@@ -110,17 +130,24 @@ function MarketingRecordModal({ open, onClose, onSaved, record, columns, userId 
       if (record) await api.updateMarketingRecord(record.id, payload);
       else await api.createMarketingRecord(payload);
       onClose(); onSaved();
-    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    } catch (e: any) { toast(e.message, "error"); } finally { setSaving(false); }
   }
+
   return (
     <Modal open={open} onClose={onClose} title={record ? "Запись" : "Новая запись"} width={440}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving}>Сохранить</button></>}>
-      <div className="field"><label className="field-label">Дата</label><input className="field-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button loading={saving} onClick={save}>Сохранить</Button>
+        </>
+      }>
+      <FormField label="Дата">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </FormField>
       {columns.map((c: ColumnDef) => (
-        <div className="field" key={c.id}>
-          <label className="field-label">{c.label}</label>
-          <input className="field-input" value={fields[c.key] ?? ""} onChange={(e) => setFields({ ...fields, [c.key]: e.target.value })} />
-        </div>
+        <FormField key={c.id} label={c.label}>
+          <Input value={fields[c.key] ?? ""} onChange={(e) => setFields({ ...fields, [c.key]: e.target.value })} />
+        </FormField>
       ))}
     </Modal>
   );
@@ -128,6 +155,7 @@ function MarketingRecordModal({ open, onClose, onSaved, record, columns, userId 
 
 function AdExpensesTab() {
   const { isAdmin, user } = useApp();
+  const toast = useToast();
   const [items, setItems] = useState<AdExpense[]>([]);
   const [total, setTotal] = useState(0);
   const [sources, setSources] = useState<LeadSource[]>([]);
@@ -138,6 +166,7 @@ function AdExpensesTab() {
   const LIMIT = 30;
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<AdExpense | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const canManage = isAdmin || (user?.position ?? "").toLowerCase().includes("маркетинг");
 
@@ -160,18 +189,22 @@ function AdExpensesTab() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <select className="field-input" style={{ width: "auto" }} value={fSource} onChange={(e) => { setFSource(e.target.value); setSkip(0); }}>
-            <option value="">Все источники</option>
-            {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <input className="field-input" style={{ width: "auto" }} type="date" value={fFrom} onChange={(e) => { setFFrom(e.target.value); setSkip(0); }} />
-          <span style={{ color: "var(--text3)" }}>—</span>
-          <input className="field-input" style={{ width: "auto" }} type="date" value={fTo} onChange={(e) => { setFTo(e.target.value); setSkip(0); }} />
-          {(fSource || fFrom || fTo) && <button className="btn btn-ghost" onClick={() => { setFSource(""); setFFrom(""); setFTo(""); setSkip(0); }}>Сбросить</button>}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 150 }}>
+            <Select value={fSource} onChange={(e) => { setFSource(e.target.value); setSkip(0); }}>
+              <option value="">Все источники</option>
+              {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Select>
+          </div>
+          <DateRangePicker
+            value={{ from: fFrom, to: fTo }}
+            onChange={v => { setFFrom(v.from); setFTo(v.to); setSkip(0); }}
+            onReset={() => { setFFrom(""); setFTo(""); setSkip(0); }}
+          />
+          {(fSource || fFrom || fTo) && <Button variant="ghost" onClick={() => { setFSource(""); setFFrom(""); setFTo(""); setSkip(0); }}>Сбросить</Button>}
         </div>
-        {canManage && <button className="btn btn-primary" onClick={() => { setEditing(null); setModal(true); }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Добавить расход</button>}
+        {canManage && <Button icon="add" onClick={() => { setEditing(null); setModal(true); }}>Добавить расход</Button>}
       </div>
 
       <div className="card" style={{ overflow: "hidden", marginBottom: 12 }}><div style={{ overflowX: "auto" }}>
@@ -191,7 +224,7 @@ function AdExpensesTab() {
                   <td style={{ width: 70 }}>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button className="row-act" onClick={() => { setEditing(e); setModal(true); }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span></button>
-                      <button className="row-act" onClick={async () => { if (confirm("Удалить?")) { await api.deleteAdExpense(e.id); load(); } }}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span></button>
+                      <button className="row-act" onClick={() => setDeleteId(e.id)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span></button>
                     </div>
                   </td>
                 )}
@@ -204,18 +237,34 @@ function AdExpensesTab() {
 
       {total > LIMIT && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-          <button className="btn btn-ghost" disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))}>← Назад</button>
+          <Button variant="ghost" disabled={skip === 0} onClick={() => setSkip(Math.max(0, skip - LIMIT))}>← Назад</Button>
           <span style={{ fontSize: 13, color: "var(--text3)" }}>{skip + 1}–{Math.min(skip + LIMIT, total)} из {total}</span>
-          <button className="btn btn-ghost" disabled={skip + LIMIT >= total} onClick={() => setSkip(skip + LIMIT)}>Вперёд →</button>
+          <Button variant="ghost" disabled={skip + LIMIT >= total} onClick={() => setSkip(skip + LIMIT)}>Вперёд →</Button>
         </div>
       )}
 
       {modal && <AdExpenseModal open={modal} onClose={() => setModal(false)} onSaved={load} expense={editing} sources={sources} />}
+      <ConfirmModal
+        open={deleteId !== null}
+        title="Удалить расход?"
+        message="Запись о рекламном расходе будет удалена."
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteId !== null) {
+            await api.deleteAdExpense(deleteId).catch(() => {});
+            setDeleteId(null);
+            load();
+          }
+        }}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 }
 
 function AdExpenseModal({ open, onClose, onSaved, expense, sources }: { open: boolean; onClose: () => void; onSaved: () => void; expense: AdExpense | null; sources: LeadSource[] }) {
+  const toast = useToast();
   const [date, setDate] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [adAccount, setAdAccount] = useState("");
@@ -240,30 +289,45 @@ function AdExpenseModal({ open, onClose, onSaved, expense, sources }: { open: bo
   }, [open, expense]);
 
   async function save() {
-    if (!amount || isNaN(Number(amount))) { alert("Введите сумму"); return; }
+    if (!amount || isNaN(Number(amount))) { toast("Введите сумму", "error"); return; }
     setSaving(true);
     try {
       const payload = { date, source_id: sourceId ? Number(sourceId) : null, ad_account: adAccount, campaign_name: campaign, amount: Number(amount), comment };
       if (expense) await api.updateAdExpense(expense.id, payload);
       else await api.createAdExpense(payload);
       onClose(); onSaved();
-    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    } catch (e: any) { toast(e.message, "error"); } finally { setSaving(false); }
   }
 
   return (
     <Modal open={open} onClose={onClose} title={expense ? "Редактировать расход" : "Новый рекламный расход"} width={460}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving}>Сохранить</button></>}>
-      <div className="field"><label className="field-label">Дата</label><input className="field-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-      <div className="field"><label className="field-label">Источник (канал)</label>
-        <select className="field-input" value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button loading={saving} onClick={save}>Сохранить</Button>
+        </>
+      }>
+      <FormField label="Дата">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </FormField>
+      <FormField label="Источник (канал)">
+        <Select value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
           <option value="">— не указан —</option>
           {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
-      </div>
-      <div className="field"><label className="field-label">Рекламный кабинет</label><input className="field-input" value={adAccount} onChange={(e) => setAdAccount(e.target.value)} placeholder="Instagram Ads" /></div>
-      <div className="field"><label className="field-label">Кампания</label><input className="field-input" value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Лидген чат-бот" /></div>
-      <div className="field"><label className="field-label">Сумма (сом)</label><input className="field-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="25000" /></div>
-      <div className="field"><label className="field-label">Комментарий</label><input className="field-input" value={comment} onChange={(e) => setComment(e.target.value)} /></div>
+        </Select>
+      </FormField>
+      <FormField label="Рекламный кабинет">
+        <Input value={adAccount} onChange={(e) => setAdAccount(e.target.value)} placeholder="Instagram Ads" />
+      </FormField>
+      <FormField label="Кампания">
+        <Input value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="Лидген чат-бот" />
+      </FormField>
+      <FormField label="Сумма (сом)">
+        <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="25000" />
+      </FormField>
+      <FormField label="Комментарий">
+        <Input value={comment} onChange={(e) => setComment(e.target.value)} />
+      </FormField>
     </Modal>
   );
 }
@@ -289,11 +353,12 @@ function MetricsTab() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
-        <input className="field-input" style={{ width: "auto" }} type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
-        <span style={{ color: "var(--text3)" }}>—</span>
-        <input className="field-input" style={{ width: "auto" }} type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
-        <button className="btn btn-ghost" onClick={load}>Обновить</button>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 16 }}>
+        <DateRangePicker
+          value={{ from: fFrom, to: fTo }}
+          onChange={v => { setFFrom(v.from); setFTo(v.to); }}
+        />
+        <Button variant="ghost" onClick={load}>Обновить</Button>
       </div>
 
       {t && (
@@ -359,6 +424,7 @@ function MetricsTab() {
 /* ============ FINANCE (iframe) ============ */
 export function FinanceDepartmentView({ dept }: { dept: Department; departments: Department[] }) {
   const { isAdmin } = useApp();
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState(dept.embed_url);
   const [saving, setSaving] = useState(false);
@@ -366,22 +432,27 @@ export function FinanceDepartmentView({ dept }: { dept: Department; departments:
   async function save() {
     setSaving(true);
     try { await api.updateDepartment(dept.id, { embed_url: url }); setEditing(false); }
-    catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    catch (e: any) { toast(e.message, "error"); } finally { setSaving(false); }
   }
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20 }}>
         <div><div className="page-h1">Отдел финансов</div><div className="page-desc">Финансовая таблица (Google Sheets)</div></div>
-        {isAdmin && <button className="btn btn-ghost" onClick={() => setEditing(!editing)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>link</span> {editing ? "Отмена" : "Изменить ссылку"}</button>}
+        {isAdmin && (
+          <Button variant="ghost" icon="link" onClick={() => setEditing(!editing)}>
+            {editing ? "Отмена" : "Изменить ссылку"}
+          </Button>
+        )}
       </div>
 
       {editing && (
         <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-          <label className="field-label">Ссылка на Google Sheets (Publish to web → Embed)</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input className="field-input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/.../pubhtml?widget=true" />
-            <button className="btn btn-primary" onClick={save} disabled={saving}>Сохранить</button>
+          <FormField label="Ссылка на Google Sheets (Publish to web → Embed)">
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/.../pubhtml?widget=true" />
+          </FormField>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+            <Button loading={saving} onClick={save}>Сохранить</Button>
           </div>
           <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 8 }}>
             В Google Sheets: Файл → Поделиться → Опубликовать в интернете → Встроить, скопируйте URL из src.
@@ -405,6 +476,7 @@ export function FinanceDepartmentView({ dept }: { dept: Department; departments:
 /* ============ ABOUT ============ */
 export function AboutDepartmentView({ dept }: { dept: Department; departments: Department[] }) {
   const { isAdmin } = useApp();
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(dept.content);
   const [saving, setSaving] = useState(false);
@@ -412,20 +484,27 @@ export function AboutDepartmentView({ dept }: { dept: Department; departments: D
   async function save() {
     setSaving(true);
     try { await api.updateDepartment(dept.id, { content }); setEditing(false); }
-    catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    catch (e: any) { toast(e.message, "error"); } finally { setSaving(false); }
   }
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 20 }}>
         <div className="page-h1">О компании</div>
-        {isAdmin && <button className="btn btn-ghost" onClick={() => editing ? save() : setEditing(true)} disabled={saving}>
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{editing ? "save" : "edit"}</span> {editing ? "Сохранить" : "Редактировать"}
-        </button>}
+        {isAdmin && (
+          <Button variant="ghost" icon={editing ? "save" : "edit"} disabled={saving}
+            onClick={() => editing ? save() : setEditing(true)}>
+            {editing ? "Сохранить" : "Редактировать"}
+          </Button>
+        )}
       </div>
       {editing ? (
-        <textarea className="field-input" style={{ minHeight: 360, lineHeight: 1.6, resize: "vertical" }}
-          value={content} onChange={(e) => setContent(e.target.value)} placeholder="Введите текст о компании…" />
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Введите текст о компании…"
+          style={{ minHeight: 360, lineHeight: "1.6" }}
+        />
       ) : content ? (
         <div className="card" style={{ padding: 28, fontSize: 15, lineHeight: 1.7, color: "var(--text2)", whiteSpace: "pre-wrap", maxWidth: 800 }}>{content}</div>
       ) : (

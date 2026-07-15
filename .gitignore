@@ -1,7 +1,11 @@
 .env
+.claude/
 __pycache__/
 *.pyc
 node_modules/
 .next/
 test.db
 *.log
+*.sql
+nginx/certs/*
+!nginx/certs/.gitkeep

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.models import (
-    Board, BoardColumn, Task, User, Role, Department,
+    Board, BoardColumn, Task, User, Role, Department, LabProject, LabProjectMember,
 )
 from app.schemas import (
     BoardOut, BoardColumnOut, BoardColumnCreate, BoardColumnUpdate,
@@ -45,8 +45,8 @@ def _can_edit_board(user: User, board: Board, db: Session | None = None) -> bool
         return True
     if board.kind == "personal":
         return board.owner_id == user.id
-    if board.kind in ("backend_queue", "qcc"):
-        return True  # visible & editable for all (per spec)
+    if board.kind in ("backend_queue", "qcc", "lab_project"):
+        return True  # view == edit for these kinds
     if board.kind == "founder":
         return user.is_founder
     return False
@@ -54,10 +54,23 @@ def _can_edit_board(user: User, board: Board, db: Session | None = None) -> bool
 
 def _can_view_board(user: User, board: Board, db: Session | None = None) -> bool:
     """Check board visibility. Respects founder-only boards and admin_only departments."""
-    # founder boards: only founders
     if board.kind == "founder":
         return user.is_founder
-    # boards belonging to admin_only department: only founders
+    if board.kind == "lab_project":
+        if db is None:
+            return user.is_founder or user.role == Role.admin
+        if user.is_founder or user.role == Role.admin:
+            return True
+        nevolabs = db.query(Department).filter(Department.slug == "nevolabs").first()
+        if nevolabs and any(m.id == user.id for m in nevolabs.members):
+            return True
+        lab_proj = db.query(LabProject).filter(LabProject.board_id == board.id).first()
+        if lab_proj:
+            return db.query(LabProjectMember).filter(
+                LabProjectMember.lab_project_id == lab_proj.id,
+                LabProjectMember.user_id == user.id,
+            ).first() is not None
+        return False
     if board.department_id and db is not None:
         dept = db.get(Department, board.department_id)
         if dept and dept.admin_only and not user.is_founder:

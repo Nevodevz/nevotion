@@ -32,6 +32,16 @@ services:
     expose:
       - "8000"
 
+  mcp:
+    build: ./mcp-server
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_API_URL: http://backend:8000/api
+    expose:
+      - "9000"
+
   frontend:
     build: ./frontend
     restart: unless-stopped
@@ -48,6 +58,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - mcp
     ports:
       - "80:80"
       - "443:443"

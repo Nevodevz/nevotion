@@ -748,3 +748,36 @@ export interface ApiKey {
 export interface ApiKeyCreated extends ApiKey {
   plain_key: string;
 }
+
+// ─────────────────────────── NevoLabs ───────────────────────────
+
+export type LabProjectStatus = "Идея" | "В разработке" | "Запущен" | "Заморожен";
+
+export const LAB_PROJECT_STATUSES: { value: LabProjectStatus; label: string; color: string; bg: string }[] = [
+  { value: "Идея",         label: "Идея",         color: "var(--text3)",   bg: "var(--bg3)" },
+  { value: "В разработке", label: "В разработке", color: "var(--primary)", bg: "var(--primary-dim)" },
+  { value: "Запущен",      label: "Запущен",      color: "var(--green)",   bg: "var(--green-bg)" },
+  { value: "Заморожен",    label: "Заморожен",    color: "var(--orange)",  bg: "var(--orange-bg)" },
+];
+
+export interface LabProjectMember {
+  id: number;
+  lab_project_id: number;
+  user_id: number;
+  user: User | null;
+}
+
+export interface LabProject {
+  id: number;
+  name: string;
+  description: string;
+  status: LabProjectStatus;
+  board_id: number | null;
+  is_archived: boolean;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  members: LabProjectMember[];
+  creator: User | null;
+  user_can_manage: boolean;
+}

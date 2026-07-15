@@ -12,10 +12,12 @@ export function BoardView({
   boardId,
   lockOwnerId,
   filterAssigneeId,
+  canEdit,
 }: {
   boardId: number;
   lockOwnerId?: number;
   filterAssigneeId?: number;
+  canEdit?: boolean;
 }) {
   const { user, isAdmin } = useApp();
   const [board, setBoard] = useState<Board | null>(null);
@@ -44,9 +46,11 @@ export function BoardView({
   if (loading || !board) return <div style={{ color: "var(--text3)" }}>Загрузка…</div>;
 
   const sharedBoard = board.kind === "backend_queue" || board.kind === "qcc";
-  const canEditColumns = isAdmin || sharedBoard
-    || (board.kind === "personal" && board.owner_id === user?.id)
-    || (board.kind === "founder" && !!user?.is_founder);
+  const canEditColumns = canEdit !== undefined
+    ? canEdit
+    : (isAdmin || sharedBoard
+      || (board.kind === "personal" && board.owner_id === user?.id)
+      || (board.kind === "founder" && !!user?.is_founder));
   const canAddTask = canEditColumns;
 
   function openAddTask(colId: number) { setEditingTask(null); setDefaultCol(colId); setTaskModal(true); }

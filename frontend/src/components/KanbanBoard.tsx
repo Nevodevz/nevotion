@@ -55,8 +55,11 @@ function Card({ task, canMove, onClick, doneColIds }: {
       {...attributes}
       {...(canMove ? listeners : {})}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+      <div className="kcard-head">
         <span className="kcard-tag" style={{ background: tag.bg, color: tag.fg }}>{task.tag}</span>
+        <button className="kcard-more" onClick={(e) => { e.stopPropagation(); onClick(); }} title="Открыть">
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>more_horiz</span>
+        </button>
       </div>
 
       <div className="kcard-title">{task.title}</div>
@@ -72,7 +75,7 @@ function Card({ task, canMove, onClick, doneColIds }: {
         <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 8 }}>{task.task_type}</div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+      <div className="kcard-footer">
         <span className="kcard-date" style={{ color: overdue ? "var(--red)" : "var(--text3)" }}>
           <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
             {isDone ? "check_circle" : overdue ? "warning" : "calendar_today"}
@@ -100,7 +103,7 @@ function Card({ task, canMove, onClick, doneColIds }: {
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
           {!canMove && <span className="material-symbols-outlined" style={{ fontSize: 13, color: "var(--text3)" }}>lock</span>}
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: PRIORITY_COLOR[task.priority], flexShrink: 0 }} />
-          {task.owner && <Avatar name={task.owner.name} color={task.owner.avatar_color} size={26} />}
+          {task.owner && <Avatar name={task.owner.name} color={task.owner.avatar_color} size={24} />}
         </span>
       </div>
     </div>
@@ -350,12 +353,16 @@ export function KanbanBoard({ board, tasks: initialTasks, canEditColumns, onChan
         .kcol-drop { border: 1.5px dashed var(--primary); border-radius: 8px; padding: 18px; text-align: center; font-size: 12px; color: var(--primary); }
         .kcard { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; cursor: grab; }
         .kcard:hover { border-color: var(--primary); box-shadow: 0 2px 12px rgba(70,72,212,0.08); }
+        .kcard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
         .kcard-tag { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 5px; }
-        .kcard-title { font-size: 13px; font-weight: 600; line-height: 1.45; color: var(--text); margin-bottom: 6px; }
-        .kcard-desc-wrap { position: relative; max-height: 34px; overflow: hidden; margin-bottom: 8px; }
+        .kcard-more { width: 22px; height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text3); border-radius: 5px; cursor: pointer; }
+        .kcard-more:hover { background: var(--bg3); color: var(--text); }
+        .kcard-title { font-size: 14px; font-weight: 500; line-height: 1.4; color: var(--text); margin-bottom: 6px; }
+        .kcard-desc-wrap { position: relative; max-height: 36px; overflow: hidden; margin-bottom: 8px; }
         .kcard-desc { font-size: 12px; color: var(--text3); line-height: 1.5; white-space: pre-wrap; }
         .kcard-desc-fade { position: absolute; bottom: 0; left: 0; right: 0; height: 20px; background: linear-gradient(to bottom, transparent, var(--bg2)); pointer-events: none; }
-        .kcard-date { font-size: 11px; display: flex; align-items: center; gap: 4px; }
+        .kcard-footer { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .kcard-date { font-size: 11px; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
         .kcol-loadmore { width: calc(100% - 0px); margin: 0; padding: 7px; font-size: 11px; color: var(--primary); cursor: pointer; border: 1px dashed var(--primary-light, #c0c1ff); background: var(--primary-dim); border-radius: 6px; font-family: inherit; transition: all 0.13s; }
         .kcol-loadmore:hover { opacity: 0.8; }
         .kcol-add { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px; margin: 4px 10px 10px; font-size: 12px; color: var(--text3); cursor: pointer; border: none; background: transparent; border-radius: 6px; font-family: inherit; transition: all 0.13s; }

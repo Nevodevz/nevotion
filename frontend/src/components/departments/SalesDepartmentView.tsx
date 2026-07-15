@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { Modal } from "@/components/Modal";
 import { UserModal } from "@/components/UserModal";
@@ -11,28 +12,11 @@ import {
   Department, UserWithStats, SalesRecord, ColumnDef,
   Meeting, MeetingStatus, MEETING_STATUS, SalesSummary,
 } from "@/lib/types";
+import { Button, Input, Select, Textarea, FormField, DateRangePicker, ConfirmModal } from "@/components/ui";
 
-// ============================= DATE RANGE FILTER =============================
-function DateRangeFilter({ from, to, onFrom, onTo, onReset }: {
-  from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void; onReset?: () => void;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 0, background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", height: 34 }}>
-      <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text3)", padding: "0 8px", flexShrink: 0 }}>calendar_today</span>
-      <input type="date" value={from} onChange={(e) => onFrom(e.target.value)}
-        style={{ border: "none", background: "transparent", outline: "none", fontFamily: "inherit", fontSize: 12, color: "var(--text2)", width: 116, padding: "0 4px", cursor: "pointer" }} />
-      <span style={{ color: "var(--text3)", fontSize: 12, padding: "0 4px" }}>—</span>
-      <input type="date" value={to} onChange={(e) => onTo(e.target.value)}
-        style={{ border: "none", background: "transparent", outline: "none", fontFamily: "inherit", fontSize: 12, color: "var(--text2)", width: 116, padding: "0 4px", cursor: "pointer" }} />
-      {onReset && (from || to) && (
-        <button onClick={onReset} title="Сбросить"
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--text3)", padding: "0 8px", display: "flex", alignItems: "center", height: "100%", flexShrink: 0 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>close</span>
-        </button>
-      )}
-    </div>
-  );
-}
+// Positions that count as a "closer" — keep in sync with backend _CLOSER_POSITIONS
+const CLOSER_POSITIONS = ["Клоузер", "Финансовый директор"];
+const isCloser = (position: string | undefined | null) => !!position && CLOSER_POSITIONS.includes(position);
 
 // ============================= SETTERS TABLE =============================
 function SettersSection({ dept, departments, isAdmin, currentUserId, onOpenMeetings }: {
@@ -53,6 +37,7 @@ function SettersSection({ dept, departments, isAdmin, currentUserId, onOpenMeeti
   const [editingRec, setEditingRec] = useState<SalesRecord | null>(null);
   const [userModal, setUserModal] = useState(false);
   const [colModal, setColModal] = useState(false);
+  const [deleteRecordId, setDeleteRecordId] = useState<number | null>(null);
 
   const loadRecords = useCallback(async (off = 0) => {
     const r = await api.salesRecords({
@@ -75,33 +60,44 @@ function SettersSection({ dept, departments, isAdmin, currentUserId, onOpenMeeti
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div><div className="section-label">Сеттеры</div></div>
         <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && <button className="btn btn-ghost" onClick={() => setColModal(true)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>view_column</span> Колонки</button>}
-          {isAdmin && <button className="btn btn-ghost" onClick={() => setUserModal(true)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span></button>}
+          {isAdmin && <Button variant="ghost" icon="view_column" onClick={() => setColModal(true)}>Колонки</Button>}
+          {isAdmin && <Button variant="ghost" icon="person_add" onClick={() => setUserModal(true)} />}
           {currentUserId && setters.find((u) => u.id === currentUserId) && (
-            <button className="btn btn-ghost" onClick={() => onOpenMeetings?.(setters.find((u) => u.id === currentUserId))}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>calendar_month</span> Мои встречи
-            </button>
+            <Button variant="ghost" icon="calendar_month" onClick={() => onOpenMeetings?.(setters.find((u) => u.id === currentUserId))}>
+              Мои встречи
+            </Button>
           )}
-          <button className="btn btn-primary" onClick={() => { setEditingRec(null); setRecModal(true); }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Запись
-          </button>
+          <Button icon="add" onClick={() => { setEditingRec(null); setRecModal(true); }}>Запись</Button>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <select className="field-select" style={{ width: "auto" }} value={fUser} onChange={(e) => setFUser(e.target.value)}>
-          <option value="">Все</option>
-          {setters.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-        </select>
-        <DateRangeFilter from={fFrom} to={fTo} onFrom={setFFrom} onTo={setFTo}
-          onReset={() => { setFFrom(""); setFTo(""); }} />
-        {(fUser || fFrom || fTo) && <button className="btn btn-ghost" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); }}>Сбросить</button>}
+      <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ minWidth: 150 }}>
+          <Select value={fUser} onChange={(e) => setFUser(e.target.value)}>
+            <option value="">Все</option>
+            {setters.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </Select>
+        </div>
+        <DateRangePicker
+          value={{ from: fFrom, to: fTo }}
+          onChange={v => { setFFrom(v.from); setFTo(v.to); }}
+          onReset={() => { setFFrom(""); setFTo(""); }}
+        />
+        {(fUser || fFrom || fTo) && (
+          <Button variant="ghost" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); }}>Сбросить</Button>
+        )}
       </div>
 
       <div className="card" style={{ overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table className="data-table">
-            <thead><tr><th>Дата</th><th>Сотрудник</th>{columns.map((c) => <th key={c.id} style={{ textAlign: "right" }}>{c.label}</th>)}{isAdmin && <th></th>}</tr></thead>
+            <thead>
+              <tr>
+                <th>Дата</th><th>Сотрудник</th>
+                {columns.map((c) => <th key={c.id} style={{ textAlign: "right" }}>{c.label}</th>)}
+                {isAdmin && <th></th>}
+              </tr>
+            </thead>
             <tbody>
               {records.map((r) => (
                 <tr key={r.id} onClick={() => { if (isAdmin || r.user_id === currentUserId) { setEditingRec(r); setRecModal(true); } }}
@@ -126,7 +122,13 @@ function SettersSection({ dept, departments, isAdmin, currentUserId, onOpenMeeti
                     </span>
                   ) : "—"}</td>
                   {columns.map((c) => <td key={c.id} style={{ textAlign: "right", fontFamily: "JetBrains Mono, monospace", color: "var(--text)" }}>{r.metrics[c.key] ?? "—"}</td>)}
-                  {isAdmin && <td><button className="row-act" onClick={async (e) => { e.stopPropagation(); if (confirm("Удалить?")) { await api.deleteSalesRecord(r.id); loadRecords(); } }}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span></button></td>}
+                  {isAdmin && (
+                    <td>
+                      <button className="row-act" onClick={(e) => { e.stopPropagation(); setDeleteRecordId(r.id); }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {records.length === 0 && <tr><td colSpan={columns.length + 3} style={{ textAlign: "center", color: "var(--text3)", padding: "30px 20px", fontSize: 14 }}>Нет записей</td></tr>}
@@ -145,6 +147,21 @@ function SettersSection({ dept, departments, isAdmin, currentUserId, onOpenMeeti
         columns={columns} addFn={api.addSalesColumn} delFn={api.deleteSalesColumn} reorderFn={api.reorderSalesColumn} />
       <UserModal open={userModal} onClose={() => setUserModal(false)} onSaved={() => api.listUsers(dept.id).then(setUsers)}
         user={null} departments={departments} defaultDeptId={dept.id} />
+      <ConfirmModal
+        open={deleteRecordId !== null}
+        title="Удалить запись?"
+        message="Запись будет удалена без возможности восстановления."
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteRecordId !== null) {
+            await api.deleteSalesRecord(deleteRecordId).catch(() => {});
+            setDeleteRecordId(null);
+            loadRecords();
+          }
+        }}
+        onCancel={() => setDeleteRecordId(null)}
+      />
     </div>
   );
 }
@@ -171,12 +188,23 @@ function MeetingsCalendar({ dept, departments, isAdmin, currentUser }: {
 
   const canCreate = isAdmin || currentUser?.position === "Сеттер" || currentUser?.position === "Руководитель продаж";
 
-  const load = useCallback(() => {
-    meetingApi.list({ year, month, closer_id: filterCloser ?? undefined }).then(setMeetings).catch(() => {});
+  const load = useCallback(async () => {
+    const PAGE = 200; // backend max page size
+    let offset = 0;
+    let all: Meeting[] = [];
+    try {
+      while (true) {
+        const page = await meetingApi.list({ year, month, closer_id: filterCloser ?? undefined, offset, limit: PAGE });
+        all = all.concat(page);
+        if (page.length < PAGE) break;
+        offset += PAGE;
+      }
+      setMeetings(all);
+    } catch {}
   }, [year, month, filterCloser]);
 
   useEffect(() => {
-    api.listUsers(dept.id).then((us) => setClosers(us.filter((u) => u.position === "Клоузер"))).catch(() => {});
+    api.listUsers(dept.id).then((us) => setClosers(us.filter((u) => isCloser(u.position)))).catch(() => {});
   }, [dept.id]);
   useEffect(() => { load(); }, [load]);
 
@@ -190,12 +218,17 @@ function MeetingsCalendar({ dept, departments, isAdmin, currentUser }: {
   for (let i = 0; i < startDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
-  // group meetings by day — parse from ISO string directly to avoid TZ shift
+  // group meetings by day in Bishkek local time, keeping only the displayed month/year
   const byDay: Record<number, Meeting[]> = {};
   for (const m of meetings) {
-    const d = parseInt(m.meeting_date.slice(8, 10), 10);
-    if (!byDay[d]) byDay[d] = [];
-    byDay[d].push(m);
+    const local = utcToLocal(m.meeting_date);
+    const localY = parseInt(local.slice(0, 4), 10);
+    const localMo = parseInt(local.slice(5, 7), 10);
+    const localD = parseInt(local.slice(8, 10), 10);
+    if (localY === year && localMo === month) {
+      if (!byDay[localD]) byDay[localD] = [];
+      byDay[localD].push(m);
+    }
   }
 
   // selected day meetings
@@ -220,12 +253,14 @@ function MeetingsCalendar({ dept, departments, isAdmin, currentUser }: {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="section-label">Клоузеры — Встречи</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select className="field-select" style={{ width: "auto" }} value={filterCloser ?? ""} onChange={(e) => setFilterCloser(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Все клоузеры</option>
-            {closers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-          {isAdmin && <button className="btn btn-ghost" onClick={() => setUserModal(true)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span></button>}
-          {canCreate && <button className="btn btn-primary" onClick={() => setMeetingModal(true)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Встреча</button>}
+          <div style={{ minWidth: 160 }}>
+            <Select value={filterCloser ?? ""} onChange={(e) => setFilterCloser(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">Все клоузеры</option>
+              {closers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </Select>
+          </div>
+          {isAdmin && <Button variant="ghost" icon="person_add" onClick={() => setUserModal(true)} />}
+          {canCreate && <Button icon="add" onClick={() => setMeetingModal(true)}>Встреча</Button>}
         </div>
       </div>
 
@@ -302,7 +337,7 @@ function MeetingsCalendar({ dept, departments, isAdmin, currentUser }: {
           onStatusChange={changeStatus} />
       )}
 
-      <UserModal open={userModal} onClose={() => setUserModal(false)} onSaved={() => api.listUsers(dept.id).then((us) => setClosers(us.filter((u) => u.position === "Клоузер")))}
+      <UserModal open={userModal} onClose={() => setUserModal(false)} onSaved={() => api.listUsers(dept.id).then((us) => setClosers(us.filter((u) => isCloser(u.position))))}
         user={null} departments={departments} defaultDeptId={dept.id} />
 
       <CalendarStyles />
@@ -327,10 +362,11 @@ function SummarySection() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="section-label">Общая сводка отдела</div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <DateRangeFilter from={fFrom} to={fTo} onFrom={setFFrom} onTo={setFTo}
-            onReset={() => { setFFrom(""); setFTo(""); }} />
-        </div>
+        <DateRangePicker
+          value={{ from: fFrom, to: fTo }}
+          onChange={v => { setFFrom(v.from); setFTo(v.to); }}
+          onReset={() => { setFFrom(""); setFTo(""); }}
+        />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -380,6 +416,8 @@ function SummarySection() {
 // ============================= MAIN EXPORT =============================
 export function SalesDepartmentView({ dept, departments }: { dept: Department; departments: Department[] }) {
   const { isAdmin, user } = useApp();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<UserWithStats | undefined>();
   const [allUsers, setAllUsers] = useState<UserWithStats[]>([]);
   const [meetingsModal, setMeetingsModal] = useState(false);
@@ -387,19 +425,24 @@ export function SalesDepartmentView({ dept, departments }: { dept: Department; d
 
   useEffect(() => { if (user) api.getUser(user.id).then(setCurrentUser).catch(() => {}); }, [user]);
   useEffect(() => { api.listUsers(dept.id).then(setAllUsers).catch(() => {}); }, [dept.id]);
+  useEffect(() => { if (searchParams.get("meetings") === "1") openMeetings(); }, [searchParams]);
 
   function openMeetings(u?: UserWithStats) {
     setMeetingsInitUser(u ?? null);
     setMeetingsModal(true);
   }
 
+  function closeMeetings() {
+    setMeetingsModal(false);
+    setMeetingsInitUser(null);
+    if (searchParams.get("meetings") === "1") router.replace("/dept/sales");
+  }
+
   return (
     <div>
       <div className="page-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="page-h1">Отдел продаж</div>
-        <button className="btn btn-ghost" onClick={() => openMeetings()}>
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>table_view</span> Встречи
-        </button>
+        <Button variant="ghost" icon="table_view" onClick={() => openMeetings()}>Встречи</Button>
       </div>
       <SettersSection dept={dept} departments={departments} isAdmin={isAdmin} currentUserId={user?.id}
         onOpenMeetings={openMeetings} />
@@ -407,7 +450,7 @@ export function SalesDepartmentView({ dept, departments }: { dept: Department; d
       <SummarySection />
       {meetingsModal && (
         <MeetingsTableModal
-          onClose={() => { setMeetingsModal(false); setMeetingsInitUser(null); }}
+          onClose={closeMeetings}
           allUsers={allUsers}
           initUser={meetingsInitUser}
           currentUser={currentUser}
@@ -444,18 +487,16 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
   isAdmin: boolean;
 }) {
   const setters = allUsers.filter((u) => u.position === "Сеттер" || u.position === "Руководитель продаж");
-  const closers = allUsers.filter((u) => u.position === "Клоузер" || u.position === "Финансовый директор");
+  const closers = allUsers.filter((u) => isCloser(u.position));
 
-  // Filter state
   const [period, setPeriod] = useState<"day" | "week" | "month" | "custom">("month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [filterStatus, setFilterStatus] = useState<MeetingStatus | "">("");
-  // role: "setter" | "closer" | "all"
   const [filterRole, setFilterRole] = useState<"setter" | "closer" | "all">(() => {
     if (!initUser) return "all";
     const pos = initUser.position;
-    if (pos === "Клоузер") return "closer";
+    if (isCloser(pos)) return "closer";
     return "setter";
   });
   const [filterUserId, setFilterUserId] = useState<string>(() => initUser ? String(initUser.id) : "");
@@ -471,7 +512,6 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
     ? { from: customFrom, to: customTo }
     : periodRange(period);
 
-  // When role changes, clear user filter
   function handleRoleChange(r: "setter" | "closer" | "all") {
     setFilterRole(r);
     setFilterUserId("");
@@ -494,7 +534,6 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
         else if (filterRole === "closer") params.closer_id = uid;
       }
       const data = await meetingApi.list(params);
-      // client-side status filter
       const filtered = filterStatus ? data.filter((m) => m.status === filterStatus) : data;
       if (off === 0) setMeetings(filtered);
       else setMeetings((prev) => [...prev, ...filtered]);
@@ -508,16 +547,14 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
   const counts: Record<MeetingStatus, number> = { scheduled: 0, closed: 0, minus: 0, push: 0, rescheduled: 0 };
   for (const m of meetings) counts[m.status] = (counts[m.status] ?? 0) + 1;
 
-  const titleName = initUser
-    ? `Встречи — ${initUser.name}`
-    : "Все встречи";
+  const titleName = initUser ? `Встречи — ${initUser.name}` : "Все встречи";
 
   return (
     <Modal open onClose={onClose} title={titleName} width={860}
-      footer={<button className="btn btn-ghost" onClick={onClose}>Закрыть</button>}>
+      footer={<Button variant="ghost" onClick={onClose}>Закрыть</Button>}>
 
       {/* ── Filters row ── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
         {/* Period */}
         <div style={{ display: "flex", gap: 4, background: "var(--bg3)", borderRadius: 8, padding: 3 }}>
           {(["day", "week", "month", "custom"] as const).map((p) => (
@@ -534,34 +571,36 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
           ))}
         </div>
         {period === "custom" && (
-          <DateRangeFilter from={customFrom} to={customTo}
-            onFrom={setCustomFrom} onTo={setCustomTo}
-            onReset={() => { setCustomFrom(""); setCustomTo(""); }} />
+          <DateRangePicker
+            value={{ from: customFrom, to: customTo }}
+            onChange={v => { setCustomFrom(v.from); setCustomTo(v.to); }}
+            onReset={() => { setCustomFrom(""); setCustomTo(""); }}
+          />
         )}
 
-        {/* Role selector */}
-        <select className="field-select" style={{ width: "auto" }}
-          value={filterRole} onChange={(e) => handleRoleChange(e.target.value as any)}>
-          <option value="all">Все участники</option>
-          <option value="setter">По сеттеру</option>
-          <option value="closer">По клоузеру</option>
-        </select>
+        <div style={{ minWidth: 150 }}>
+          <Select value={filterRole} onChange={(e) => handleRoleChange(e.target.value as any)}>
+            <option value="all">Все участники</option>
+            <option value="setter">По сеттеру</option>
+            <option value="closer">По клоузеру</option>
+          </Select>
+        </div>
 
-        {/* User selector */}
         {filterRole !== "all" && (
-          <select className="field-select" style={{ width: "auto" }}
-            value={filterUserId} onChange={(e) => setFilterUserId(e.target.value)}>
-            <option value="">— Все —</option>
-            {userListForRole.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          <div style={{ minWidth: 150 }}>
+            <Select value={filterUserId} onChange={(e) => setFilterUserId(e.target.value)}>
+              <option value="">— Все —</option>
+              {userListForRole.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </Select>
+          </div>
         )}
 
-        {/* Status filter */}
-        <select className="field-select" style={{ width: "auto" }}
-          value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
-          <option value="">Все статусы</option>
-          {STATUS_KEYS_ALL.map((s) => <option key={s} value={s}>{MEETING_STATUS[s].label}</option>)}
-        </select>
+        <div style={{ minWidth: 150 }}>
+          <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
+            <option value="">Все статусы</option>
+            {STATUS_KEYS_ALL.map((s) => <option key={s} value={s}>{MEETING_STATUS[s].label}</option>)}
+          </Select>
+        </div>
       </div>
 
       {/* ── Stats cards ── */}
@@ -605,8 +644,7 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
               {meetings.map((m) => {
                 const st = MEETING_STATUS[m.status];
                 return (
-                  <tr key={m.id} onClick={() => setSelectedMeeting(m)}
-                    style={{ cursor: "pointer" }}>
+                  <tr key={m.id} onClick={() => setSelectedMeeting(m)} style={{ cursor: "pointer" }}>
                     <td style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 12, whiteSpace: "nowrap" }}>
                       {fmtDatetime(m.meeting_date)}
                     </td>
@@ -640,7 +678,6 @@ function MeetingsTableModal({ onClose, allUsers, initUser, currentUser, isAdmin 
           open
           onClose={() => setSelectedMeeting(null)}
           onSaved={async () => {
-            // Refresh the opened meeting data
             const updated = await meetingApi.get(selectedMeeting.id).catch(() => null);
             if (updated) setSelectedMeeting(updated);
             load(0);
@@ -670,14 +707,11 @@ function MeetingModal({ open, onClose, onSaved, closers, defaultDate }: {
   closers: UserWithStats[]; defaultDate: Date;
 }) {
   const toast = useToast();
-  const { user } = useApp();
   const [form, setForm] = useState({ closer_id: "", meeting_date: "", address: "", client_name: "", client_phone: "", notes: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    // Use local date/time to avoid UTC timezone shift
-    // Format defaultDate as Bishkek local datetime-local string
     const Y = defaultDate.getFullYear(), Mo = String(defaultDate.getMonth()+1).padStart(2,"0");
     const D = String(defaultDate.getDate()).padStart(2,"0"), h = String(defaultDate.getHours()).padStart(2,"0"), mi = String(defaultDate.getMinutes()).padStart(2,"0");
     const d = `${Y}-${Mo}-${D}T${h}:${mi}`;
@@ -695,33 +729,41 @@ function MeetingModal({ open, onClose, onSaved, closers, defaultDate }: {
     finally { setSaving(false); }
   }
 
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setForm(prev => ({ ...prev, [k]: e.target.value }));
+
   return (
     <Modal open={open} onClose={onClose} title="Назначить встречу" width={460}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving || !form.client_name || !form.closer_id}>Назначить</button></>}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div className="field"><label className="field-label">Клоузер</label>
-          <select className="field-select" value={form.closer_id} onChange={(e) => setForm({ ...form, closer_id: e.target.value })}>
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button loading={saving} disabled={!form.client_name || !form.closer_id} onClick={save}>Назначить</Button>
+        </>
+      }>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+        <FormField label="Клоузер">
+          <Select value={form.closer_id} onChange={set("closer_id")}>
             {closers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </div>
-        <div className="field"><label className="field-label">Дата и время</label>
-          <input className="field-input" type="datetime-local" value={form.meeting_date} onChange={(e) => setForm({ ...form, meeting_date: e.target.value })} />
-        </div>
+          </Select>
+        </FormField>
+        <FormField label="Дата и время">
+          <Input type="datetime-local" value={form.meeting_date} onChange={set("meeting_date")} />
+        </FormField>
       </div>
-      <div className="field"><label className="field-label">Имя клиента</label>
-        <input className="field-input" value={form.client_name} onChange={(e) => setForm({ ...form, client_name: e.target.value })} placeholder="ФИО" autoFocus />
+      <FormField label="Имя клиента">
+        <Input value={form.client_name} onChange={set("client_name")} placeholder="ФИО" autoFocus />
+      </FormField>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+        <FormField label="Телефон">
+          <Input value={form.client_phone} onChange={set("client_phone")} placeholder="+996 700 000000" />
+        </FormField>
+        <FormField label="Адрес">
+          <Input value={form.address} onChange={set("address")} placeholder="ул. Манаса 45" />
+        </FormField>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div className="field"><label className="field-label">Телефон</label>
-          <input className="field-input" value={form.client_phone} onChange={(e) => setForm({ ...form, client_phone: e.target.value })} placeholder="+996 700 000000" />
-        </div>
-        <div className="field"><label className="field-label">Адрес</label>
-          <input className="field-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="ул. Манаса 45" />
-        </div>
-      </div>
-      <div className="field"><label className="field-label">Заметки</label>
-        <textarea className="field-input" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} style={{ resize: "vertical" }} />
-      </div>
+      <FormField label="Заметки">
+        <Textarea value={form.notes} onChange={set("notes")} rows={2} />
+      </FormField>
     </Modal>
   );
 }
@@ -734,6 +776,7 @@ function MeetingDetailModal({ open, onClose, onSaved, meeting, closers, currentU
   const [editForm, setEditForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const canChangeStatus = isAdmin || meeting.closer_id === currentUser?.id;
   const canEdit = isAdmin || currentUser?.position === "Сеттер" || currentUser?.position === "Руководитель продаж";
@@ -741,11 +784,11 @@ function MeetingDetailModal({ open, onClose, onSaved, meeting, closers, currentU
   const STATUS_ACTIONS: MeetingStatus[] = ["closed","minus","push","rescheduled"];
 
   async function handleDelete() {
-    if (!confirm(`Удалить встречу с «${meeting.client_name}»?`)) return;
     setDeleting(true);
     try {
       await meetingApi.delete(meeting.id);
       toast("Встреча удалена");
+      setDeleteConfirm(false);
       onClose();
       onDeleted?.();
     } catch (e: any) { toast(e.message, "error"); }
@@ -776,52 +819,60 @@ function MeetingDetailModal({ open, onClose, onSaved, meeting, closers, currentU
     finally { setSaving(false); }
   }
 
+  const setEF = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setEditForm((prev: any) => ({ ...prev, [k]: e.target.value }));
+
   return (
     <Modal open={open} onClose={() => { setEditMode(false); onClose(); }} title="Встреча" width={500}
       footer={
-        editMode
-          ? <><button className="btn btn-ghost" onClick={() => setEditMode(false)}>Отмена</button><button className="btn btn-primary" onClick={saveEdit} disabled={saving}>Сохранить</button></>
-          : <div style={{ display: "flex", gap: 8, width: "100%", alignItems: "center" }}>
-              {canDelete && (
-                <button className="btn btn-ghost" style={{ color: "var(--red)" }} onClick={handleDelete} disabled={deleting}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span> Удалить
-                </button>
-              )}
-              {canEdit && <button className="btn btn-ghost" onClick={() => setEditMode(true)}><span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span> Редактировать</button>}
-              <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={onClose}>Закрыть</button>
-            </div>
+        editMode ? (
+          <>
+            <Button variant="ghost" onClick={() => setEditMode(false)}>Отмена</Button>
+            <Button loading={saving} onClick={saveEdit}>Сохранить</Button>
+          </>
+        ) : (
+          <div style={{ display: "flex", gap: 8, width: "100%", alignItems: "center" }}>
+            {canDelete && (
+              <Button variant="danger" icon="delete" disabled={deleting} onClick={() => setDeleteConfirm(true)}>
+                Удалить
+              </Button>
+            )}
+            {canEdit && (
+              <Button variant="ghost" icon="edit" onClick={() => setEditMode(true)}>Редактировать</Button>
+            )}
+            <Button variant="ghost" style={{ marginLeft: "auto" }} onClick={onClose}>Закрыть</Button>
+          </div>
+        )
       }>
 
       {editMode ? (
-        /* ── Edit form ── */
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="field"><label className="field-label">Клоузер</label>
-              <select className="field-select" value={editForm.closer_id} onChange={(e) => setEditForm({ ...editForm, closer_id: e.target.value })}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <FormField label="Клоузер">
+              <Select value={editForm.closer_id} onChange={setEF("closer_id")}>
                 {closers.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </div>
-            <div className="field"><label className="field-label">Дата и время</label>
-              <input className="field-input" type="datetime-local" value={editForm.meeting_date} onChange={(e) => setEditForm({ ...editForm, meeting_date: e.target.value })} />
-            </div>
+              </Select>
+            </FormField>
+            <FormField label="Дата и время">
+              <Input type="datetime-local" value={editForm.meeting_date} onChange={setEF("meeting_date")} />
+            </FormField>
           </div>
-          <div className="field"><label className="field-label">Имя клиента</label>
-            <input className="field-input" value={editForm.client_name} onChange={(e) => setEditForm({ ...editForm, client_name: e.target.value })} />
+          <FormField label="Имя клиента">
+            <Input value={editForm.client_name} onChange={setEF("client_name")} />
+          </FormField>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+            <FormField label="Телефон">
+              <Input value={editForm.client_phone} onChange={setEF("client_phone")} />
+            </FormField>
+            <FormField label="Адрес">
+              <Input value={editForm.address} onChange={setEF("address")} />
+            </FormField>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="field"><label className="field-label">Телефон</label>
-              <input className="field-input" value={editForm.client_phone} onChange={(e) => setEditForm({ ...editForm, client_phone: e.target.value })} />
-            </div>
-            <div className="field"><label className="field-label">Адрес</label>
-              <input className="field-input" value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
-            </div>
-          </div>
-          <div className="field"><label className="field-label">Заметки</label>
-            <textarea className="field-input" value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={3} style={{ resize: "vertical" }} />
-          </div>
+          <FormField label="Заметки">
+            <Textarea value={editForm.notes} onChange={setEF("notes")} rows={3} />
+          </FormField>
         </div>
       ) : (
-        /* ── View mode ── */
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
             <span className="status-chip" style={{ background: st.bg, color: st.color, fontSize: 13, padding: "5px 12px" }}>{st.label}</span>
@@ -867,14 +918,24 @@ function MeetingDetailModal({ open, onClose, onSaved, meeting, closers, currentU
             </div>
           )}
 
-          <button className="btn btn-ghost" style={{ marginTop: 14, width: "100%", justifyContent: "center" }} onClick={() => setSubModal(true)}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Добавить подвстречу
-          </button>
+          <Button variant="ghost" icon="add" style={{ marginTop: 14, width: "100%", justifyContent: "center" }} onClick={() => setSubModal(true)}>
+            Добавить подвстречу
+          </Button>
         </>
       )}
 
       <MeetingModal open={subModal} onClose={() => setSubModal(false)} onSaved={() => { setSubModal(false); onSaved(); onClose(); }}
         closers={closers} defaultDate={isoToWallDate(meeting.meeting_date)} />
+
+      <ConfirmModal
+        open={deleteConfirm}
+        title="Удалить встречу?"
+        message={`Встреча с «${meeting.client_name}» будет удалена без возможности восстановления.`}
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm(false)}
+      />
     </Modal>
   );
 }
@@ -919,23 +980,30 @@ function SalesRecordModal({ open, onClose, onSaved, record, columns, staff, isAd
 
   return (
     <Modal open={open} onClose={onClose} title={record ? "Запись" : "Новая запись"} width={440}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>Отмена</button><button className="btn btn-primary" onClick={save} disabled={saving}>Сохранить</button></>}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div className="field"><label className="field-label">Дата</label><input className="field-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        <div className="field"><label className="field-label">Сотрудник</label>
-          <select className="field-select" value={userId} disabled={!isAdmin} onChange={(e) => setUserId(e.target.value)}>
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button loading={saving} onClick={save}>Сохранить</Button>
+        </>
+      }>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
+        <FormField label="Дата">
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </FormField>
+        <FormField label="Сотрудник">
+          <Select value={userId} disabled={!isAdmin} onChange={(e) => setUserId(e.target.value)}>
             <option value="">—</option>
             {staff.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </div>
+          </Select>
+        </FormField>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 12px" }}>
         {columns.map((c: ColumnDef) => (
-          <div className="field" key={c.id}>
-            <label className="field-label">{c.label}</label>
-            <input className="field-input" type={c.kind === "number" ? "number" : "text"}
-              value={metrics[c.key] ?? ""} onChange={(e) => setMetrics({ ...metrics, [c.key]: c.kind === "number" ? Number(e.target.value) : e.target.value })} />
-          </div>
+          <FormField key={c.id} label={c.label}>
+            <Input type={c.kind === "number" ? "number" : "text"}
+              value={metrics[c.key] ?? ""}
+              onChange={(e) => setMetrics({ ...metrics, [c.key]: c.kind === "number" ? Number(e.target.value) : e.target.value })} />
+          </FormField>
         ))}
       </div>
     </Modal>
@@ -946,20 +1014,17 @@ export function ColumnsModal({ open, onClose, onSaved, columns, addFn, delFn, re
   const toast = useToast();
   const [label, setLabel] = useState("");
   const [kind, setKind] = useState("number");
+  const [deleteColId, setDeleteColId] = useState<number | null>(null);
 
   async function add() {
     if (!label.trim()) return;
     try { await addFn({ label, kind }); setLabel(""); onSaved(); toast("Колонка добавлена"); }
     catch (e: any) { toast(e.message, "error"); }
   }
-  async function del(id: number) {
-    if (!confirm("Удалить колонку?")) return;
-    try { await delFn(id); onSaved(); } catch (e: any) { toast(e.message, "error"); }
-  }
 
   return (
     <Modal open={open} onClose={onClose} title="Колонки таблицы" width={420}
-      footer={<button className="btn btn-ghost" onClick={onClose}>Закрыть</button>}>
+      footer={<Button variant="ghost" onClick={onClose}>Закрыть</Button>}>
       <div style={{ marginBottom: 16 }}>
         {columns.map((c: ColumnDef) => (
           <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
@@ -969,22 +1034,39 @@ export function ColumnsModal({ open, onClose, onSaved, columns, addFn, delFn, re
                 <button className="row-act" onClick={async () => { try { await reorderFn(c.id, "left"); onSaved(); } catch {} }}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>arrow_back</span></button>
                 <button className="row-act" onClick={async () => { try { await reorderFn(c.id, "right"); onSaved(); } catch {} }}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>arrow_forward</span></button>
               </>}
-              <button className="row-act" onClick={() => del(c.id)}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span></button>
+              <button className="row-act" onClick={() => setDeleteColId(c.id)}><span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span></button>
             </div>
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-        <div className="field" style={{ flex: 1, margin: 0 }}>
-          <label className="field-label">Новая колонка</label>
-          <input className="field-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Название" />
+        <div style={{ flex: 1 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "var(--text2)", marginBottom: 6, userSelect: "none" }}>Новая колонка</label>
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Название" />
         </div>
-        <select className="field-select" style={{ width: 110 }} value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="number">Число</option>
-          <option value="text">Текст</option>
-        </select>
-        <button className="btn btn-primary" onClick={add}>Добавить</button>
+        <div style={{ minWidth: 110, flexShrink: 0 }}>
+          <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="number">Число</option>
+            <option value="text">Текст</option>
+          </Select>
+        </div>
+        <Button onClick={add}>Добавить</Button>
       </div>
+
+      <ConfirmModal
+        open={deleteColId !== null}
+        title="Удалить колонку?"
+        message="Данные этой колонки будут удалены."
+        confirmLabel="Удалить"
+        variant="danger"
+        onConfirm={async () => {
+          if (deleteColId !== null) {
+            try { await delFn(deleteColId); onSaved(); } catch (e: any) { toast(e.message, "error"); }
+            setDeleteColId(null);
+          }
+        }}
+        onCancel={() => setDeleteColId(null)}
+      />
     </Modal>
   );
 }
@@ -1050,7 +1132,7 @@ function TableStyles() {
       .load-more-btn { width: 100%; padding: 11px; background: transparent; border: none; border-top: 1px solid var(--border); font-size: 12px; color: var(--primary); cursor: pointer; font-family: inherit; }
       .load-more-btn:hover { background: var(--bg-hover); }
       .status-chip { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
-      .meeting-row { display: flex; align-items: flex-start; gap: 10; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
+      .meeting-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
       .meeting-row:hover { background: var(--bg-hover); }
       .meeting-row:last-child { border-bottom: none; }
       .detail-grid { display: flex; flex-direction: column; }

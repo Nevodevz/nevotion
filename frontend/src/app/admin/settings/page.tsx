@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext";
 import { settingsApi } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import type { LeadSource, ServiceItem, LeadStage, RejectReason, ExpenseCategory, Account } from "@/lib/types";
+import { Button, Input, PageHeader } from "@/components/ui";
 
 type Tab = "sources" | "services" | "stages" | "reject" | "expense" | "accounts";
 
@@ -58,63 +59,68 @@ function LookupSection({
   return (
     <div>
       <div style={{ marginBottom: 16, display: "flex", gap: 8 }}>
-        <input
-          className="sett-input"
-          placeholder="Новый пункт…"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-        />
-        <button className="btn btn-primary" onClick={handleAdd} disabled={busy || !newName.trim()}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+        <div style={{ flex: 1 }}>
+          <Input
+            placeholder="Новый пункт…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
+        </div>
+        <Button variant="primary" icon="add" onClick={handleAdd} disabled={busy || !newName.trim()}>
           Добавить
-        </button>
+        </Button>
       </div>
 
       <div className="sett-list">
         {items.map((item, idx) => (
-          <div key={item.id} className={`sett-row ${!item.is_active ? "sett-row-inactive" : ""}`}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <button className="sett-reorder-btn" onClick={() => onMoveUp(item.id)} disabled={idx === 0}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_upward</span>
-              </button>
-              <button className="sett-reorder-btn" onClick={() => onMoveDown(item.id)} disabled={idx === items.length - 1}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_downward</span>
-              </button>
-            </div>
-
+          <div key={item.id} className="sett-row">
             {editId === item.id ? (
-              <input
-                className="sett-input sett-inline-input"
-                value={editName}
-                autoFocus
-                onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRename(item.id);
-                  if (e.key === "Escape") setEditId(null);
-                }}
-                onBlur={() => handleRename(item.id)}
-              />
+              <div style={{ flex: 1 }}>
+                <Input
+                  value={editName}
+                  autoFocus
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRename(item.id);
+                    if (e.key === "Escape") setEditId(null);
+                  }}
+                  onBlur={() => handleRename(item.id)}
+                />
+              </div>
             ) : (
-              <span
-                className="sett-name"
-                onClick={() => { setEditId(item.id); setEditName(item.name); }}
-                title="Нажмите для переименования"
-              >
+              <span className={`sett-name ${"is_active" in item && !item.is_active ? "sett-name-inactive" : ""}`}>
                 {item.name}
               </span>
             )}
 
             {extraCols && extraCols(item)}
 
-            <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+            {"is_active" in item && (
+              <span className={`sett-status ${item.is_active ? "sett-status-on" : "sett-status-off"}`}>
+                {item.is_active ? "Активен" : "Выключен"}
+              </span>
+            )}
+
+            <div className="sett-actions">
+              <button className="sett-icon-btn" onClick={() => onMoveUp(item.id)} disabled={idx === 0} title="Вверх">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_upward</span>
+              </button>
+              <button className="sett-icon-btn" onClick={() => onMoveDown(item.id)} disabled={idx === items.length - 1} title="Вниз">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_downward</span>
+              </button>
+              <button className="sett-icon-btn" onClick={() => { setEditId(item.id); setEditName(item.name); }} title="Переименовать">
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+              </button>
               {"is_active" in item && (
                 <button
-                  className={`sett-toggle ${item.is_active ? "sett-toggle-on" : "sett-toggle-off"}`}
+                  className="sett-icon-btn"
                   onClick={() => onToggle(item.id, !item.is_active)}
                   title={item.is_active ? "Отключить" : "Включить"}
                 >
-                  {item.is_active ? "Активен" : "Отключён"}
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                    {item.is_active ? "visibility" : "visibility_off"}
+                  </span>
                 </button>
               )}
             </div>
@@ -162,87 +168,90 @@ function StagesSection({
   return (
     <div>
       <div style={{ marginBottom: 16, display: "flex", gap: 8 }}>
-        <input
-          className="sett-input"
-          placeholder="Новый этап…"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-        />
-        <button className="btn btn-primary" onClick={handleAdd} disabled={busy || !newName.trim()}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+        <div style={{ flex: 1 }}>
+          <Input
+            placeholder="Новый этап…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
+        </div>
+        <Button variant="primary" icon="add" onClick={handleAdd} disabled={busy || !newName.trim()}>
           Добавить
-        </button>
+        </Button>
       </div>
 
       <div className="sett-list">
         {stages.map((stage, idx) => (
           <div key={stage.id} className="sett-row">
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <button className="sett-reorder-btn" onClick={() => onMoveUp(stage.id)} disabled={idx === 0}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_upward</span>
-              </button>
-              <button className="sett-reorder-btn" onClick={() => onMoveDown(stage.id)} disabled={idx === stages.length - 1}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_downward</span>
-              </button>
-            </div>
-
             <div
               className="stage-color-dot"
               style={{ background: stage.color, flexShrink: 0 }}
             />
 
             {editId === stage.id ? (
-              <div style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap", alignItems: "center" }}>
-                <input
-                  className="sett-input sett-inline-input"
-                  style={{ minWidth: 140 }}
-                  value={editData.name ?? stage.name}
-                  autoFocus
-                  onChange={(e) => setEditData((d) => ({ ...d, name: e.target.value }))}
-                />
-                <label style={{ fontSize: 12, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}>
-                  Цвет
+              <div style={{ display: "flex", gap: 8, flex: 1, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div style={{ flex: "1 1 140px" }}>
+                  <Input
+                    value={editData.name ?? stage.name}
+                    autoFocus
+                    onChange={(e) => setEditData((d) => ({ ...d, name: e.target.value }))}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 12, color: "var(--text3)" }}>Цвет</span>
                   <input
                     type="color"
                     value={editData.color ?? stage.color}
                     onChange={(e) => setEditData((d) => ({ ...d, color: e.target.value }))}
-                    style={{ width: 28, height: 28, border: "none", background: "none", cursor: "pointer" }}
+                    style={{
+                      width: 38, height: 38, border: "0.5px solid var(--border)",
+                      borderRadius: "var(--radius-md)", background: "var(--bg-input)",
+                      cursor: "pointer", padding: 2,
+                    }}
                   />
-                </label>
-                <label style={{ fontSize: 12, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}>
-                  Норма дней
-                  <input
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <span style={{ fontSize: 12, color: "var(--text3)" }}>Норма дней</span>
+                  <Input
                     type="number"
-                    className="sett-input"
-                    style={{ width: 64 }}
+                    style={{ width: 72 }}
                     value={editData.norm_days ?? stage.norm_days ?? ""}
                     onChange={(e) => setEditData((d) => ({ ...d, norm_days: e.target.value ? Number(e.target.value) : null }))}
                   />
-                </label>
-                <label style={{ fontSize: 12, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}>
+                </div>
+                <label style={{ fontSize: 12, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4, paddingBottom: 8 }}>
                   <input type="checkbox" checked={editData.is_won ?? stage.is_won}
                     onChange={(e) => setEditData((d) => ({ ...d, is_won: e.target.checked }))} />
                   Оплачено
                 </label>
-                <label style={{ fontSize: 12, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4 }}>
+                <label style={{ fontSize: 12, color: "var(--text3)", display: "flex", alignItems: "center", gap: 4, paddingBottom: 8 }}>
                   <input type="checkbox" checked={editData.is_lost ?? stage.is_lost}
                     onChange={(e) => setEditData((d) => ({ ...d, is_lost: e.target.checked }))} />
                   Минус
                 </label>
-                <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => handleSave(stage.id)} disabled={busy}>Сохранить</button>
-                <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => { setEditId(null); setEditData({}); }}>Отмена</button>
+                <Button variant="primary" size="sm" onClick={() => handleSave(stage.id)} disabled={busy}>Сохранить</Button>
+                <Button variant="ghost" size="sm" onClick={() => { setEditId(null); setEditData({}); }}>Отмена</Button>
               </div>
             ) : (
               <>
-                <span className="sett-name" onClick={() => { setEditId(stage.id); setEditData({}); }} title="Редактировать">
-                  {stage.name}
-                </span>
+                <span className="sett-name">{stage.name}</span>
                 {stage.norm_days != null && (
                   <span className="sett-badge" style={{ background: "var(--bg3)", color: "var(--text3)" }}>{stage.norm_days}д</span>
                 )}
                 {stage.is_won && <span className="sett-badge" style={{ background: "var(--green-bg)", color: "var(--green)" }}>Оплачено</span>}
                 {stage.is_lost && <span className="sett-badge" style={{ background: "var(--red-bg)", color: "var(--red)" }}>Минус</span>}
+                <div className="sett-actions">
+                  <button className="sett-icon-btn" onClick={() => onMoveUp(stage.id)} disabled={idx === 0} title="Вверх">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_upward</span>
+                  </button>
+                  <button className="sett-icon-btn" onClick={() => onMoveDown(stage.id)} disabled={idx === stages.length - 1} title="Вниз">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_downward</span>
+                  </button>
+                  <button className="sett-icon-btn" onClick={() => { setEditId(stage.id); setEditData({}); }} title="Редактировать">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -291,54 +300,58 @@ function AccountsSection({
   return (
     <div>
       <div style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <input className="sett-input" placeholder="Название счёта…" value={newName}
-          onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
-        <input className="sett-input" style={{ width: 80 }} placeholder="Валюта" value={newCurrency}
+        <div style={{ flex: 1 }}>
+          <Input placeholder="Название счёта…" value={newName}
+            onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAdd()} />
+        </div>
+        <Input style={{ width: 80 }} placeholder="Валюта" value={newCurrency}
           onChange={(e) => setNewCurrency(e.target.value)} />
-        <button className="btn btn-primary" onClick={handleAdd} disabled={busy || !newName.trim()}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
+        <Button variant="primary" icon="add" onClick={handleAdd} disabled={busy || !newName.trim()}>
           Добавить
-        </button>
+        </Button>
       </div>
 
       <div className="sett-list">
         {accounts.map((acc, idx) => (
-          <div key={acc.id} className={`sett-row ${!acc.is_active ? "sett-row-inactive" : ""}`}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <button className="sett-reorder-btn" onClick={() => onMoveUp(acc.id)} disabled={idx === 0}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_upward</span>
-              </button>
-              <button className="sett-reorder-btn" onClick={() => onMoveDown(acc.id)} disabled={idx === accounts.length - 1}>
-                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_downward</span>
-              </button>
-            </div>
-
+          <div key={acc.id} className="sett-row">
             {editId === acc.id ? (
               <div style={{ display: "flex", gap: 8, flex: 1, alignItems: "center" }}>
-                <input className="sett-input sett-inline-input" value={editName} autoFocus
-                  onChange={(e) => setEditName(e.target.value)} />
-                <input className="sett-input" style={{ width: 80 }} value={editCurrency}
-                  onChange={(e) => setEditCurrency(e.target.value)} />
-                <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => handleSave(acc.id)}>Сохранить</button>
-                <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setEditId(null)}>Отмена</button>
+                <div style={{ flex: 1 }}>
+                  <Input value={editName} autoFocus onChange={(e) => setEditName(e.target.value)} />
+                </div>
+                <Input style={{ width: 80 }} value={editCurrency} onChange={(e) => setEditCurrency(e.target.value)} />
+                <Button variant="primary" size="sm" onClick={() => handleSave(acc.id)}>Сохранить</Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditId(null)}>Отмена</Button>
               </div>
             ) : (
               <>
-                <span className="sett-name" onClick={() => { setEditId(acc.id); setEditName(acc.name); setEditCurrency(acc.currency); }}>
-                  {acc.name}
-                </span>
+                <span className={`sett-name ${!acc.is_active ? "sett-name-inactive" : ""}`}>{acc.name}</span>
                 <span className="sett-badge" style={{ background: "var(--bg3)", color: "var(--text3)" }}>{acc.currency}</span>
+                <span className={`sett-status ${acc.is_active ? "sett-status-on" : "sett-status-off"}`}>
+                  {acc.is_active ? "Активен" : "Выключен"}
+                </span>
+                <div className="sett-actions">
+                  <button className="sett-icon-btn" onClick={() => onMoveUp(acc.id)} disabled={idx === 0} title="Вверх">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_upward</span>
+                  </button>
+                  <button className="sett-icon-btn" onClick={() => onMoveDown(acc.id)} disabled={idx === accounts.length - 1} title="Вниз">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_downward</span>
+                  </button>
+                  <button className="sett-icon-btn" onClick={() => { setEditId(acc.id); setEditName(acc.name); setEditCurrency(acc.currency); }} title="Переименовать">
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>edit</span>
+                  </button>
+                  <button
+                    className="sett-icon-btn"
+                    onClick={() => onUpdate(acc.id, { is_active: !acc.is_active })}
+                    title={acc.is_active ? "Отключить" : "Включить"}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                      {acc.is_active ? "visibility" : "visibility_off"}
+                    </span>
+                  </button>
+                </div>
               </>
             )}
-
-            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-              <button
-                className={`sett-toggle ${acc.is_active ? "sett-toggle-on" : "sett-toggle-off"}`}
-                onClick={() => onUpdate(acc.id, { is_active: !acc.is_active })}
-              >
-                {acc.is_active ? "Активен" : "Отключён"}
-              </button>
-            </div>
           </div>
         ))}
         {accounts.length === 0 && (
@@ -500,10 +513,10 @@ export default function SettingsPage() {
 
   return (
     <Shell title="Настройки">
-      <div className="page-head">
-        <div className="page-h1">Настройки</div>
-        <div className="page-desc">Справочники CRM — редактируйте списки источников, услуг, этапов воронки и счетов</div>
-      </div>
+      <PageHeader
+        title="Настройки"
+        subtitle="Справочники CRM — редактируйте списки источников, услуг, этапов воронки и счетов"
+      />
 
       <div className="card">
         {/* Tabs */}
@@ -542,27 +555,25 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .sett-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 12px 12px 0; border-bottom: 1px solid var(--border); }
         .sett-tab { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; background: none; color: var(--text3); font-size: 13px; font-family: inherit; cursor: pointer; border-radius: 6px 6px 0 0; transition: all 0.13s; margin-bottom: -1px; border-bottom: 2px solid transparent; }
         .sett-tab:hover { color: var(--text); background: var(--bg3); }
         .sett-tab-active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
-        .sett-list { display: flex; flex-direction: column; gap: 4px; }
-        .sett-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg3); border-radius: 6px; border: 1px solid var(--border); }
-        .sett-row-inactive { opacity: 0.55; }
-        .sett-name { flex: 1; font-size: 14px; color: var(--text); cursor: pointer; }
-        .sett-name:hover { color: var(--primary); }
-        .sett-input { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font-size: 13px; color: var(--text); font-family: inherit; outline: none; flex: 1; }
-        .sett-input:focus { border-color: var(--primary); }
-        .sett-inline-input { flex: 1; }
-        .sett-reorder-btn { background: none; border: none; cursor: pointer; color: var(--text3); padding: 1px 2px; border-radius: 3px; display: flex; align-items: center; }
-        .sett-reorder-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
-        .sett-reorder-btn:disabled { opacity: 0.3; cursor: default; }
-        .sett-toggle { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; font-family: inherit; }
-        .sett-toggle-on { background: var(--green-bg); color: var(--green); }
-        .sett-toggle-off { background: var(--bg3); color: var(--text3); }
-        .sett-badge { padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 500; }
-        .stage-color-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .sett-list { display: flex; flex-direction: column; }
+        .sett-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 0.5px solid var(--border); }
+        .sett-row:last-child { border-bottom: none; }
+        .sett-name { flex: 1; min-width: 0; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sett-name-inactive { color: var(--text3); text-decoration: line-through; }
+        .sett-status { flex-shrink: 0; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .sett-status-on { background: var(--green-bg); color: var(--green); }
+        .sett-status-off { background: var(--bg3); color: var(--text3); }
+        .sett-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+        .sett-icon-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; color: var(--text3); border-radius: 6px; }
+        .sett-icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+        .sett-icon-btn:disabled { opacity: 0.3; cursor: default; }
+        .sett-badge { flex-shrink: 0; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+        .stage-color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
       `}</style>
     </Shell>
   );

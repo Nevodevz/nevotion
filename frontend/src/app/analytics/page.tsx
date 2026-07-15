@@ -10,6 +10,7 @@ import { Shell } from "@/components/Shell";
 import { useApp } from "@/context/AppContext";
 import { analyticsApi } from "@/lib/api";
 import type { DashboardMetrics, ChartsData, Problem, FunnelPoint } from "@/lib/types";
+import { Button, DateRangePicker, PageHeader } from "@/components/ui";
 
 const PIE_COLORS = ["#4648d4", "#16a34a", "#e03b3b", "#f59e0b", "#06b6d4", "#8b5cf6", "#ec4899", "#84cc16"];
 
@@ -42,14 +43,15 @@ function KpiCard({
 
 function SeverityBadge({ severity }: { severity: string }) {
   const map: Record<string, { color: string; label: string }> = {
-    critical: { color: "#e03b3b", label: "Критично" },
-    error: { color: "#f59e0b", label: "Ошибка" },
-    warning: { color: "#4648d4", label: "Внимание" },
+    critical: { color: "var(--red)",     label: "Критично" },
+    error:    { color: "var(--yellow)",  label: "Ошибка" },
+    warning:  { color: "var(--primary)", label: "Внимание" },
   };
-  const { color, label } = map[severity] || { color: "gray", label: severity };
+  const { color, label } = map[severity] || { color: "var(--text3)", label: severity };
   return (
     <span style={{
-      fontSize: 11, fontWeight: 600, color, background: color + "22",
+      fontSize: 11, fontWeight: 600, color,
+      background: color + "22",
       borderRadius: 4, padding: "2px 7px", whiteSpace: "nowrap",
     }}>{label}</span>
   );
@@ -72,7 +74,7 @@ function FunnelViz({ data }: { data: FunnelPoint[] }) {
             <div style={{ flex: 1, background: "var(--bg2)", borderRadius: 4, height: 26, position: "relative" }}>
               <div style={{
                 width: `${pct}%`, height: "100%", borderRadius: 4,
-                background: stage.is_won ? "#16a34a" : (stage.color || "#4648d4"),
+                background: stage.is_won ? "var(--green)" : (stage.color || "var(--primary)"),
                 display: "flex", alignItems: "center", paddingLeft: 8,
                 transition: "width 0.4s",
               }}>
@@ -123,20 +125,20 @@ export default function AnalyticsPage() {
 
   return (
     <Shell title="Аналитика">
-      <div className="page-head" style={{ marginBottom: 20 }}>
-        <div>
-          <div className="page-h1">CEO Dashboard</div>
-          <div className="page-desc">Сводные показатели бизнеса</div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: 150 }} />
-          <input type="date" className="input" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: 150 }} />
-          <button className="btn-primary" onClick={load}>Применить</button>
-          {(dateFrom || dateTo) && (
-            <button className="btn-ghost" onClick={() => { setDateFrom(""); setDateTo(""); setTimeout(load, 0); }}>Сброс</button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="CEO Dashboard"
+        subtitle="Сводные показатели бизнеса"
+        actions={
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <DateRangePicker
+              value={{ from: dateFrom, to: dateTo }}
+              onChange={v => { setDateFrom(v.from); setDateTo(v.to); }}
+              onReset={() => { setDateFrom(""); setDateTo(""); }}
+            />
+            <Button variant="primary" onClick={load}>Применить</Button>
+          </div>
+        }
+      />
 
       {loading && (
         <div className="card" style={{ padding: 40, textAlign: "center", color: "var(--text3)" }}>Загрузка...</div>
@@ -146,9 +148,9 @@ export default function AnalyticsPage() {
         <>
           {/* Problems */}
           {probs.length > 0 && (
-            <div className="card" style={{ padding: "14px 20px", marginBottom: 16, borderLeft: "3px solid #e03b3b" }}>
+            <div className="card" style={{ padding: "14px 20px", marginBottom: 16, borderLeft: "3px solid var(--red)" }}>
               <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6, color: "#e03b3b" }}>warning</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6, color: "var(--red)" }}>warning</span>
                 Проблемы ({probs.length})
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -169,12 +171,12 @@ export default function AnalyticsPage() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
             <KpiCard label="Лидов сегодня" value={metrics.leads_today} sub={`Вчера: ${metrics.leads_yesterday}`} icon="person_add" />
             <KpiCard label="Лидов за месяц" value={metrics.leads_month} icon="group_add" />
-            <KpiCard label="CPL (месяц)" value={fmtSom(metrics.cpl)} icon="ads_click" color="#f59e0b" />
-            <KpiCard label="CAC (месяц)" value={fmtSom(metrics.cac)} icon="price_change" color="#e03b3b" />
+            <KpiCard label="CPL (месяц)" value={fmtSom(metrics.cpl)} icon="ads_click" color="var(--yellow)" />
+            <KpiCard label="CAC (месяц)" value={fmtSom(metrics.cac)} icon="price_change" color="var(--red)" />
             <KpiCard label="Встреч назначено" value={metrics.meetings_scheduled} sub="за месяц" icon="calendar_month" />
-            <KpiCard label="Встреч проведено" value={metrics.meetings_conducted} sub="за месяц" icon="handshake" color="#16a34a" />
+            <KpiCard label="Встреч проведено" value={metrics.meetings_conducted} sub="за месяц" icon="handshake" color="var(--green)" />
             <KpiCard label="Продаж вчера" value={metrics.sales_yesterday} icon="shopping_cart" />
-            <KpiCard label="Продаж за месяц" value={metrics.sales_month} icon="sell" color="#16a34a" />
+            <KpiCard label="Продаж за месяц" value={metrics.sales_month} icon="sell" color="var(--green)" />
           </div>
 
           {/* KPI Cards row 2 */}
@@ -184,25 +186,25 @@ export default function AnalyticsPage() {
               value={fmtSom(metrics.revenue_month)}
               sub={metrics.plan_revenue_month > 0 ? `План: ${fmtSom(metrics.plan_revenue_month)} · ${metrics.revenue_vs_plan_pct ?? 0}%` : undefined}
               icon="payments"
-              color="#16a34a"
+              color="var(--green)"
             />
             <KpiCard label="Средний чек" value={fmtSom(metrics.avg_check)} icon="receipt" />
             <KpiCard label="На счетах" value={fmtSom(metrics.total_on_accounts)} icon="account_balance" />
-            <KpiCard label="В ожидании оплаты" value={fmtSom(metrics.pending_amount)} sub={`${metrics.pending_count} сделок`} icon="pending_actions" color="#f59e0b" />
-            <KpiCard label="Расходы месяца" value={fmtSom(metrics.expenses_month)} icon="trending_down" color="#e03b3b" />
-            <KpiCard label="ФОТ месяца" value={fmtSom(metrics.fot_month)} icon="group" color="#e03b3b" />
+            <KpiCard label="В ожидании оплаты" value={fmtSom(metrics.pending_amount)} sub={`${metrics.pending_count} сделок`} icon="pending_actions" color="var(--yellow)" />
+            <KpiCard label="Расходы месяца" value={fmtSom(metrics.expenses_month)} icon="trending_down" color="var(--red)" />
+            <KpiCard label="ФОТ месяца" value={fmtSom(metrics.fot_month)} icon="group" color="var(--red)" />
             <KpiCard
               label="Прибыль месяца"
               value={fmtSom(metrics.profit_month)}
               icon="trending_up"
-              color={metrics.profit_month >= 0 ? "#16a34a" : "#e03b3b"}
+              color={metrics.profit_month >= 0 ? "var(--green)" : "var(--red)"}
             />
             <KpiCard
               label="Прогноз 7 дней"
               value={fmtSom(metrics.cashflow_7d)}
               sub={metrics.cashflow_warning ? "⚠ Возможен разрыв" : "Норма"}
               icon="savings"
-              color={metrics.cashflow_warning ? "#e03b3b" : "#16a34a"}
+              color={metrics.cashflow_warning ? "var(--red)" : "var(--green)"}
             />
           </div>
 

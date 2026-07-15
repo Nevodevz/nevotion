@@ -568,3 +568,35 @@ class MonthlyPlan(Base):
     plan_expenses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ─────────────────────────── NevoLabs ───────────────────────────
+
+class LabProject(Base):
+    __tablename__ = "lab_projects"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    # Идея | В разработке | Запущен | Заморожен
+    status: Mapped[str] = mapped_column(String(40), default="Идея", nullable=False)
+    board_id: Mapped[int | None] = mapped_column(ForeignKey("boards.id", ondelete="SET NULL"), nullable=True, index=True)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    board: Mapped["Board | None"] = relationship()
+    creator: Mapped["User | None"] = relationship(foreign_keys=[created_by])
+    members: Mapped[list["LabProjectMember"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+
+class LabProjectMember(Base):
+    __tablename__ = "lab_project_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    lab_project_id: Mapped[int] = mapped_column(ForeignKey("lab_projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    project: Mapped["LabProject"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship()

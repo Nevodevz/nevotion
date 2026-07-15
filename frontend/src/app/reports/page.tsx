@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Shell } from "@/components/Shell";
 import { useToast } from "@/context/ToastContext";
 import { analyticsApi } from "@/lib/api";
+import { Button, Input, FormField, Card, PageHeader } from "@/components/ui";
 
 type ExportType = "leads" | "finance" | "payroll";
 
@@ -33,7 +34,8 @@ function ExportCard({
   };
 
   return (
-    <div className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+    <Card padding={24}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 36, color: "var(--accent)" }}>{icon}</span>
         <div>
@@ -41,38 +43,34 @@ function ExportCard({
           <div style={{ fontSize: 13, color: "var(--text3)" }}>{desc}</div>
         </div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <div>
-          <label style={{ fontSize: 11, color: "var(--text3)", display: "block", marginBottom: 4 }}>С</label>
-          <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ width: 148 }} />
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ flex: "1 1 140px" }}>
+          <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>С</div>
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
         </div>
-        <div>
-          <label style={{ fontSize: 11, color: "var(--text3)", display: "block", marginBottom: 4 }}>По</label>
-          <input type="date" className="input" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: 148 }} />
+        <div style={{ flex: "1 1 140px" }}>
+          <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 4 }}>По</div>
+          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
         </div>
         {(dateFrom || dateTo) && (
-          <button className="btn-ghost" style={{ alignSelf: "flex-end" }} onClick={() => { setDateFrom(""); setDateTo(""); }}>
-            Сброс
-          </button>
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>Сброс</Button>
         )}
       </div>
-      <button className="btn-primary" onClick={doExport} disabled={loading} style={{ alignSelf: "flex-start" }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 16, verticalAlign: "middle", marginRight: 6 }}>download</span>
+      <Button variant="primary" icon="download" onClick={doExport} disabled={loading} loading={loading} style={{ alignSelf: "flex-start" }}>
         {loading ? "Экспортируем..." : "Скачать .xlsx"}
-      </button>
-    </div>
+      </Button>
+      </div>
+    </Card>
   );
 }
 
 export default function ReportsPage() {
   return (
     <Shell title="Отчёты">
-      <div className="page-head" style={{ marginBottom: 24 }}>
-        <div>
-          <div className="page-h1">Отчёты</div>
-          <div className="page-desc">Экспорт данных в Excel</div>
-        </div>
-      </div>
+      <PageHeader
+        title="Отчёты"
+        subtitle="Экспорт данных в Excel"
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 900 }}>
         <ExportCard

@@ -442,3 +442,20 @@ export const apiKeys = {
   create: (name: string) => request<import("./types").ApiKeyCreated>("/api-keys", { method: "POST", body: JSON.stringify({ name }) }),
   revoke: (id: number) => request<void>(`/api-keys/${id}`, { method: "DELETE" }),
 };
+
+// NevoLabs lab projects
+export const labProjectApi = {
+  list: (include_archived = false) =>
+    request<import("./types").LabProject[]>(`/lab-projects${include_archived ? "?include_archived=true" : ""}`),
+  get: (id: number) => request<import("./types").LabProject>(`/lab-projects/${id}`),
+  create: (data: { name: string; description?: string; status?: string; member_ids?: number[] }) =>
+    request<import("./types").LabProject>("/lab-projects", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: { name?: string; description?: string; status?: string; member_ids?: number[] }) =>
+    request<import("./types").LabProject>(`/lab-projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  archive: (id: number) =>
+    request<import("./types").LabProject>(`/lab-projects/${id}/archive`, { method: "POST" }),
+  addMember: (id: number, user_id: number) =>
+    request<import("./types").LabProject>(`/lab-projects/${id}/members`, { method: "POST", body: JSON.stringify({ user_id }) }),
+  removeMember: (id: number, user_id: number) =>
+    request<import("./types").LabProject>(`/lab-projects/${id}/members/${user_id}`, { method: "DELETE" }),
+};

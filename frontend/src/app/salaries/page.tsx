@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
+import { Modal } from "@/components/Modal";
 import { payrollApi, api, analyticsApi, devPayrollConfigApi } from "@/lib/api";
 import type { PayrollCalculation, PayrollRecord, PayrollRule, UserWithStats, DevPayrollConfig } from "@/lib/types";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/context/ToastContext";
+import { Button, Input, Select, FormField, Card, PageHeader, ConfirmModal } from "@/components/ui";
 
 const FMT = (n: number) => n.toLocaleString("ru-RU") + " с";
 
@@ -30,6 +33,7 @@ function RuleModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
   const [employeeId, setEmployeeId] = useState(rule ? String(rule.employee_id) : "");
   const [baseSalary, setBaseSalary] = useState(rule ? String(rule.base_salary) : "0");
   const [pct, setPct] = useState(rule ? String(rule.commission_percent) : "0");
@@ -54,7 +58,7 @@ function RuleModal({
       else await payrollApi.createRule(data);
       onSaved();
       onClose();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast(e.message || "Ошибка", "error"); }
     finally { setSaving(false); }
   }
 
@@ -66,52 +70,41 @@ function RuleModal({
   ];
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="card" style={{ padding: 24, minWidth: 400, maxWidth: 500 }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>
-          {rule ? "Изменить правило" : "Новое правило зарплаты"}
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label className="field-label">Сотрудник</label>
-          <select className="field-input" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
-            <option value="">— выбрать —</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.position})</option>)}
-          </select>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-          <div>
-            <label className="field-label">Оклад (сом)</label>
-            <input className="field-input" type="number" min="0" value={baseSalary} onChange={e => setBaseSalary(e.target.value)} />
-          </div>
-          <div>
-            <label className="field-label">Комиссия (%)</label>
-            <input className="field-input" type="number" min="0" max="100" value={pct} onChange={e => setPct(e.target.value)} />
-          </div>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label className="field-label">Условие комиссии</label>
-          <select className="field-input" value={condition} onChange={e => setCondition(e.target.value as "none" | "from_setter" | "closer_self" | "any")}>
-            {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div>
-            <label className="field-label">Действует с</label>
-            <input className="field-input" type="date" value={activeFrom} onChange={e => setActiveFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="field-label">По (необязательно)</label>
-            <input className="field-input" type="date" value={activeTo} onChange={e => setActiveTo(e.target.value)} />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button className="btn btn-ghost" onClick={onClose}>Отмена</button>
-          <button className="btn btn-primary" onClick={save} disabled={saving || !employeeId}>
-            {saving ? "Сохраняю..." : "Сохранить"}
-          </button>
-        </div>
+    <Modal open title={rule ? "Изменить правило" : "Новое правило зарплаты"} onClose={onClose} width={500}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" onClick={save} disabled={saving || !employeeId} loading={saving}>Сохранить</Button>
+        </>
+      }>
+      <FormField label="Сотрудник" required>
+        <Select value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
+          <option value="">— выбрать —</option>
+          {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.position})</option>)}
+        </Select>
+      </FormField>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <FormField label="Оклад (сом)">
+          <Input type="number" min="0" value={baseSalary} onChange={e => setBaseSalary(e.target.value)} />
+        </FormField>
+        <FormField label="Комиссия (%)">
+          <Input type="number" min="0" max="100" value={pct} onChange={e => setPct(e.target.value)} />
+        </FormField>
       </div>
-    </div>
+      <FormField label="Условие комиссии">
+        <Select value={condition} onChange={e => setCondition(e.target.value as "none" | "from_setter" | "closer_self" | "any")}>
+          {CONDITIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </Select>
+      </FormField>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <FormField label="Действует с">
+          <Input type="date" value={activeFrom} onChange={e => setActiveFrom(e.target.value)} />
+        </FormField>
+        <FormField label="По (необязательно)">
+          <Input type="date" value={activeTo} onChange={e => setActiveTo(e.target.value)} />
+        </FormField>
+      </div>
+    </Modal>
   );
 }
 
@@ -134,17 +127,16 @@ function DetailPanel({
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
+    <div style={{ position: "fixed", inset: 0, background: "var(--overlay)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "flex-end" }}>
       <div style={{ width: Math.min(520, window.innerWidth), height: "100vh", background: "var(--bg)", overflowY: "auto", padding: 28, boxShadow: "-4px 0 24px rgba(0,0,0,0.18)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 18 }}>{userName}</div>
             <div style={{ fontSize: 12, color: "var(--text3)" }}>{calc.period_start} — {calc.period_end}</div>
           </div>
-          <button className="btn btn-ghost" onClick={onClose}>✕</button>
+          <Button variant="ghost" onClick={onClose}>✕</Button>
         </div>
 
-        {/* Summary cards */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
           {[
             { label: "Оклад", value: FMT(calc.base_salary), color: "var(--text1)" },
@@ -152,19 +144,18 @@ function DetailPanel({
             { label: "Бонусы", value: FMT(calc.bonus_amount), color: "var(--green)" },
             { label: "Штрафы", value: FMT(calc.penalty_amount), color: "var(--red)" },
           ].map(({ label, value, color }) => (
-            <div key={label} className="card" style={{ padding: "12px 14px" }}>
+            <Card key={label} padding="12px 14px">
               <div style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
-            </div>
+            </Card>
           ))}
         </div>
 
-        <div className="card" style={{ padding: "14px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Card padding="14px 16px" style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontSize: 13, color: "var(--text2)" }}>Итого к выплате</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "var(--green)" }}>{FMT(calc.total_amount)}</div>
-        </div>
+        </Card>
 
-        {/* Dev breakdown */}
         {calc.dev_breakdown && (
           <div>
             {calc.dev_breakdown.kind !== "backender" && calc.dev_breakdown.bots && (
@@ -179,7 +170,7 @@ function DetailPanel({
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
                   {calc.dev_breakdown.bots.map((b) => (
-                    <div key={b.project_id} className="card" style={{ padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Card key={b.project_id} padding="8px 14px" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 500 }}>{b.company}</div>
                         {b.delivered_at && <div style={{ fontSize: 11, color: "var(--text3)" }}>Сдан: {b.delivered_at}</div>}
@@ -191,20 +182,20 @@ function DetailPanel({
                           <span style={{ fontSize: 14, fontWeight: 700, color: "var(--primary)" }}>{FMT(b.price)}</span>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   ))}
                   {calc.dev_breakdown.bots.length === 0 && (
                     <div style={{ color: "var(--text3)", fontSize: 13, padding: "10px 0" }}>Нет сданных ботов в этом периоде</div>
                   )}
                 </div>
                 {calc.dev_breakdown.support_count != null && calc.dev_breakdown.support_count > 0 && (
-                  <div className="card" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                  <Card padding="10px 14px" style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                     <div style={{ fontSize: 13, color: "var(--text2)" }}>
                       Тех. поддержка × {calc.dev_breakdown.support_count} бот{calc.dev_breakdown.support_count > 1 ? "а" : ""}
                       <span style={{ fontSize: 11, color: "var(--text3)", marginLeft: 6 }}>({FMT(calc.dev_breakdown.support_price ?? 0)}/бот)</span>
                     </div>
                     <div style={{ fontWeight: 700, color: "var(--orange)" }}>{FMT(calc.dev_breakdown.support_total ?? 0)}</div>
-                  </div>
+                  </Card>
                 )}
               </>
             )}
@@ -216,7 +207,6 @@ function DetailPanel({
           </div>
         )}
 
-        {/* Deals breakdown (sales/marketing) */}
         {!calc.dev_breakdown && calc.deals.length > 0 && (
           <div>
             <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, color: "var(--text2)" }}>
@@ -224,7 +214,7 @@ function DetailPanel({
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {calc.deals.map((d) => (
-                <div key={d.deal_id} className="card" style={{ padding: "10px 14px" }}>
+                <Card key={d.deal_id} padding="10px 14px">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
                       <div style={{ fontSize: 12, color: "var(--text3)" }}>
@@ -242,7 +232,7 @@ function DetailPanel({
                       <div style={{ fontSize: 10, color: "var(--text3)" }}>комиссия</div>
                     </div>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           </div>
@@ -255,9 +245,9 @@ function DetailPanel({
 
         {isAdmin && (
           <div style={{ marginTop: 24 }}>
-            <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleCommit} disabled={committing}>
-              {committing ? "Фиксирую..." : "Зафиксировать расчёт"}
-            </button>
+            <Button variant="primary" style={{ width: "100%", justifyContent: "center" }} onClick={handleCommit} disabled={committing} loading={committing}>
+              Зафиксировать расчёт
+            </Button>
             <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 6, textAlign: "center" }}>
               Создаст снимок PayrollRecord со статусом «черновик»
             </div>
@@ -270,6 +260,7 @@ function DetailPanel({
 
 // ── Dev Config Tab ──────────────────────────────────────────────
 function DevConfigTab({ configs, onSaved, isAdmin }: { configs: DevPayrollConfig[]; onSaved: () => void; isAdmin: boolean }) {
+  const toast = useToast();
   const [editing, setEditing] = useState<Record<number, Partial<DevPayrollConfig>>>({});
   const [saving, setSaving] = useState<number | null>(null);
 
@@ -292,7 +283,7 @@ function DevConfigTab({ configs, onSaved, isAdmin }: { configs: DevPayrollConfig
       });
       onSaved();
       setEditing(e => { const n = { ...e }; delete n[cfg.id]; return n; });
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast(e.message || "Ошибка", "error"); }
     finally { setSaving(null); }
   }
 
@@ -305,7 +296,7 @@ function DevConfigTab({ configs, onSaved, isAdmin }: { configs: DevPayrollConfig
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {configs.map((cfg) => (
-          <div key={cfg.id} className="card" style={{ padding: 20 }}>
+          <Card key={cfg.id} padding={20}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>{ROLE_LABELS[cfg.role_kind] ?? cfg.role_kind}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
               {([
@@ -314,22 +305,20 @@ function DevConfigTab({ configs, onSaved, isAdmin }: { configs: DevPayrollConfig
                 ["support_price", "Цена тех. поддержки/бот (сом)"],
                 ["free_bots_limit", "Ботов в фиксе (шт)"],
               ] as [keyof DevPayrollConfig, string][]).map(([key, label]) => (
-                <div key={key}>
-                  <label className="field-label">{label}</label>
-                  <input className="field-input" type="number" min="0"
+                <FormField key={key} label={label}>
+                  <Input type="number" min="0"
                     value={get(cfg, key)}
                     onChange={(e) => patch(cfg.id, key, parseInt(e.target.value) || 0)}
                     disabled={!isAdmin} />
-                </div>
+                </FormField>
               ))}
             </div>
             {isAdmin && (
-              <button className="btn btn-primary" style={{ fontSize: 12 }}
-                onClick={() => save(cfg)} disabled={saving === cfg.id}>
-                {saving === cfg.id ? "Сохраняю..." : "Сохранить"}
-              </button>
+              <Button variant="primary" size="sm" onClick={() => save(cfg)} disabled={saving === cfg.id} loading={saving === cfg.id}>
+                Сохранить
+              </Button>
             )}
-          </div>
+          </Card>
         ))}
         {configs.length === 0 && (
           <div style={{ color: "var(--text3)", padding: 20 }}>Настройки не найдены. Запустите seed_dev_payroll().</div>
@@ -344,9 +333,9 @@ type Tab = "payroll" | "rules" | "records" | "dev_config";
 
 export default function SalariesPage() {
   const { isAdmin, user: me } = useApp();
+  const toast = useToast();
   const [tab, setTab] = useState<Tab>("payroll");
 
-  // Period
   const [periodOffset, setPeriodOffset] = useState(0);
   const period = periodDates(periodOffset);
 
@@ -361,6 +350,7 @@ export default function SalariesPage() {
   const [detailUser, setDetailUser] = useState<string>("");
   const [ruleModal, setRuleModal] = useState(false);
   const [editingRule, setEditingRule] = useState<PayrollRule | null>(null);
+  const [deleteRuleId, setDeleteRuleId] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -395,7 +385,7 @@ export default function SalariesPage() {
     });
     await loadData();
     setDetailCalc(null);
-    alert("Расчёт зафиксирован!");
+    toast("Расчёт зафиксирован!");
   }
 
   const totals = calculations.reduce(
@@ -409,34 +399,26 @@ export default function SalariesPage() {
 
   return (
     <Shell title="Зарплаты">
-      <div className="page-head">
-        <div>
-          <div className="page-h1">Зарплаты</div>
-          <div className="page-desc">Расчёт и выплата — {period.label}</div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-ghost" onClick={() => analyticsApi.exportXlsx("payroll")}>
-            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>download</span> Excel
-          </button>
-          {isAdmin && (
-            <button className="btn btn-primary" onClick={() => { setEditingRule(null); setRuleModal(true); }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Правило
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Зарплаты"
+        subtitle={`Расчёт и выплата — ${period.label}`}
+        actions={
+          <>
+            <Button variant="ghost" icon="download" onClick={() => analyticsApi.exportXlsx("payroll")}>Excel</Button>
+            {isAdmin && (
+              <Button variant="primary" icon="add" onClick={() => { setEditingRule(null); setRuleModal(true); }}>Правило</Button>
+            )}
+          </>
+        }
+      />
 
       {/* Period switcher */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-        <button className="btn btn-ghost" onClick={() => setPeriodOffset(p => p - 1)}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_left</span>
-        </button>
+        <Button variant="ghost" icon="chevron_left" onClick={() => setPeriodOffset(p => p - 1)} />
         <span style={{ fontWeight: 600, fontSize: 14, minWidth: 160, textAlign: "center" }}>{period.label}</span>
-        <button className="btn btn-ghost" onClick={() => setPeriodOffset(p => p + 1)} disabled={periodOffset >= 0}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>chevron_right</span>
-        </button>
+        <Button variant="ghost" icon="chevron_right" onClick={() => setPeriodOffset(p => p + 1)} disabled={periodOffset >= 0} />
         {periodOffset !== 0 && (
-          <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setPeriodOffset(0)}>Сегодня</button>
+          <Button variant="ghost" size="sm" onClick={() => setPeriodOffset(0)}>Сегодня</Button>
         )}
       </div>
 
@@ -462,7 +444,6 @@ export default function SalariesPage() {
       {/* ── Payroll Tab ── */}
       {!loading && tab === "payroll" && (
         <div>
-          {/* Summary row */}
           {calculations.length > 0 && (
             <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
               {[
@@ -470,10 +451,10 @@ export default function SalariesPage() {
                 { label: "Оклады", value: FMT(totals.base), color: "var(--text1)" },
                 { label: "Комиссии", value: FMT(totals.commission), color: "var(--green)" },
               ].map(({ label, value, color }) => (
-                <div key={label} className="card" style={{ padding: "12px 18px" }}>
+                <Card key={label} padding="12px 18px">
                   <div style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{label}</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
-                </div>
+                </Card>
               ))}
             </div>
           )}
@@ -538,9 +519,7 @@ export default function SalariesPage() {
         <div>
           <div style={{ marginBottom: 12 }}>
             {isAdmin && (
-              <button className="btn btn-primary" onClick={() => { setEditingRule(null); setRuleModal(true); }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add</span> Новое правило
-              </button>
+              <Button variant="primary" icon="add" onClick={() => { setEditingRule(null); setRuleModal(true); }}>Новое правило</Button>
             )}
           </div>
           <div className="card" style={{ overflow: "auto" }}>
@@ -571,15 +550,8 @@ export default function SalariesPage() {
                     <td style={{ padding: "10px 14px" }}>
                       {isAdmin && (
                         <div style={{ display: "flex", gap: 4 }}>
-                          <button className="btn btn-ghost" style={{ padding: "4px 8px", fontSize: 12 }} onClick={() => { setEditingRule(r); setRuleModal(true); }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>edit</span>
-                          </button>
-                          <button className="btn btn-ghost" style={{ padding: "4px 8px", fontSize: 12, color: "var(--red)" }}
-                            onClick={async () => {
-                              if (confirm("Удалить правило?")) { await payrollApi.deleteRule(r.id); loadData(); }
-                            }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>delete</span>
-                          </button>
+                          <Button variant="ghost" size="sm" icon="edit" onClick={() => { setEditingRule(r); setRuleModal(true); }} />
+                          <Button variant="danger" size="sm" icon="delete" onClick={() => setDeleteRuleId(r.id)} />
                         </div>
                       )}
                     </td>
@@ -628,10 +600,9 @@ export default function SalariesPage() {
                   </td>
                   <td style={{ padding: "10px 14px" }}>
                     {isAdmin && r.status === "draft" && (
-                      <button className="btn btn-ghost" style={{ fontSize: 12 }}
-                        onClick={async () => { await payrollApi.updateRecordStatus(r.id, "paid"); loadData(); }}>
+                      <Button variant="ghost" size="sm" onClick={async () => { await payrollApi.updateRecordStatus(r.id, "paid"); loadData(); }}>
                         Отметить выплаченным
-                      </button>
+                      </Button>
                     )}
                   </td>
                 </tr>
@@ -662,6 +633,17 @@ export default function SalariesPage() {
           onClose={() => setDetailCalc(null)}
           onCommit={() => handleCommit(detailCalc)}
           isAdmin={!!isAdmin}
+        />
+      )}
+      {deleteRuleId !== null && (
+        <ConfirmModal
+          open
+          title="Удалить правило?"
+          message="Это действие необратимо. Правило зарплаты будет удалено."
+          confirmLabel="Удалить"
+          variant="danger"
+          onConfirm={async () => { await payrollApi.deleteRule(deleteRuleId!); setDeleteRuleId(null); loadData(); }}
+          onCancel={() => setDeleteRuleId(null)}
         />
       )}
     </Shell>

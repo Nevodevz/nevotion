@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { Department } from "@/lib/types";
 import { DevDepartmentView } from "@/components/departments/DevDepartmentView";
 import { SalesDepartmentView } from "@/components/departments/SalesDepartmentView";
+import { NevoLabsDepartmentView } from "@/components/departments/NevoLabsDepartmentView";
 import {
   MarketingDepartmentView, FinanceDepartmentView, AboutDepartmentView,
   QccDepartmentView, HiddenDepartmentView,
@@ -41,6 +42,7 @@ export default function DeptPage() {
       case "about": return <AboutDepartmentView dept={dept} departments={departments} />;
       case "qcc": return <QccDepartmentView dept={dept} departments={departments} />;
       case "hidden": return <HiddenDepartmentView />;
+      case "nevolabs": return <NevoLabsDepartmentView dept={dept} departments={departments} />;
       default: return <Empty title={dept.name} desc="Раздел в разработке." icon={dept.icon} />;
     }
   }
