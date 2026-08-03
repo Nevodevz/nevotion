@@ -8,7 +8,7 @@ from app.models import (
     SalesRecord, MarketingRecord, Meeting, MeetingStatus,
     Role, ProjectStatus, Priority,
     LeadSource, Service, LeadStage, RejectReason, ExpenseCategory, Account,
-    Lead, LeadStageHistory, LeadActivity, LeadStatus,
+    Lead, LeadStageHistory, LeadActivity, LeadStatus, Deal,
     PayrollRule, FinanceTransaction, AdExpense, MonthlyPlan, DevPayrollConfig,
     LabProject, LabProjectMember,
 )
@@ -39,9 +39,10 @@ def seed_lookups():
             "CRM", "Автоматизация", "Другое",
         ])
 
+        # NOTE: «Демо-тест» is intentionally absent — it was retired in migration 018.
+        # Existing installs keep the row (archived) so history stays readable.
         stages = [
             ("Новый лид",        {}),
-            ("Демо-тест",        {}),
             ("Созвон",           {}),
             ("Встреча",          {}),
             ("Договор",          {}),
@@ -329,6 +330,13 @@ def seed_leads():
                     to_stage_id=stage_id, changed_by=setter_id, comment="Лид создан"))
                 db.add(LeadActivity(lead_id=lead.id, activity_type="created",
                     description="Лид создан", responsible_id=setter_id))
+            # Deal.amount is the canonical deal amount — seed it alongside the lead
+            # so demo data matches the production model.
+            if amount:
+                db.add(Deal(
+                    lead_id=lead.id, amount=amount, paid_amount=0, status="pending",
+                    setter_id=setter_id, closer_id=closer_id,
+                ))
             db.flush()
 
         add_lead("+996 700 111111", "Алибек Джумалиев", "Sushi Pro KG",
@@ -336,7 +344,7 @@ def seed_leads():
         add_lead("+996 555 222222", "Айгерим Токтосунова", "Beauty Studio",
                  "WhatsApp", "Автоматизация", "Созвон", "minai", None, 80000, "Хочет автоматизировать запись")
         add_lead("+996 777 333333", "Бакыт Малиев", "БакытСтрой",
-                 "Сарафан", "Сайт", "Демо-тест", "rahima", None, 120000)
+                 "Сарафан", "Сайт", "Созвон", "rahima", None, 120000)
         add_lead("+996 500 444444", "Жибек Асанова", "",
                  "Facebook", "AI чат-бот", "Договор", "minai", "marlen", 200000, "Согласовали условия")
         add_lead("+996 770 555555", "Нурлан Исаков", "Naryn Trade",

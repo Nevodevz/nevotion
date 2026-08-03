@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     ENVIRONMENT: str = "development"  # "production" triggers security checks
 
+    # ── Media (avatars) ──────────────────────────────────────────
+    # Directory must live on a persistent volume; served at MEDIA_URL_PREFIX.
+    MEDIA_ROOT: str = "/app/media"
+    MEDIA_URL_PREFIX: str = "/media"
+    MAX_AVATAR_BYTES: int = 5 * 1024 * 1024  # 5 MB
+
     @property
     def database_url(self) -> str:
         return (

@@ -1,14 +1,16 @@
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.security import hash_password
 from app.models import User, Project, ProjectStatus, Department, Role
 from app.schemas import UserOut, UserCreate, UserUpdate, UserWithStats
+from app.services import media
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -139,6 +141,73 @@ def update_user(
         setattr(user, f, v)
     db.commit()
     db.refresh(user)
+    return user
+
+
+# ─────────────────────────── Avatars ───────────────────────────
+
+def _can_manage_avatar(current: User, target_id: int) -> bool:
+    """Own avatar always; other employees' avatars follow existing admin rights."""
+    return current.id == target_id or current.role == Role.admin
+
+
+@router.post("/{user_id}/avatar", response_model=UserOut)
+async def upload_avatar(
+    user_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    """Upload and normalise an avatar (JPEG / PNG / WebP, max 5 MB).
+
+    The file's real content is validated server-side — the declared
+    Content-Type alone is never trusted — and the stored copy is re-encoded to a
+    square WebP, which also strips metadata.
+    """
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Сотрудник не найден")
+    if not _can_manage_avatar(current, user_id):
+        raise HTTPException(403, "Можно менять только свой аватар")
+
+    # Read with a hard cap so an oversized upload cannot exhaust memory.
+    data = await file.read(settings.MAX_AVATAR_BYTES + 1)
+    if len(data) > settings.MAX_AVATAR_BYTES:
+        mb = settings.MAX_AVATAR_BYTES // (1024 * 1024)
+        raise HTTPException(413, f"Файл больше {mb} МБ")
+
+    try:
+        url = media.save_avatar(user_id, data, file.content_type)
+    except media.InvalidImage as exc:
+        raise HTTPException(422, str(exc))
+
+    old = user.avatar_url
+    user.avatar_url = url
+    db.commit()
+    db.refresh(user)
+    # Only remove the previous file once the new one is committed.
+    media.delete_avatar(old)
+    return user
+
+
+@router.delete("/{user_id}/avatar", response_model=UserOut)
+def delete_avatar(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    """Remove the photo; the UI falls back to initials + avatar_color."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Сотрудник не найден")
+    if not _can_manage_avatar(current, user_id):
+        raise HTTPException(403, "Можно менять только свой аватар")
+
+    old = user.avatar_url
+    user.avatar_url = ""
+    db.commit()
+    db.refresh(user)
+    media.delete_avatar(old)
     return user
 
 

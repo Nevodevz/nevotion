@@ -1,7 +1,10 @@
 .env
+.env.*
+!.env.example
 .claude/
 __pycache__/
 *.pyc
+.venv/
 node_modules/
 .next/
 test.db
@@ -9,3 +12,8 @@ test.db
 *.sql
 nginx/certs/*
 !nginx/certs/.gitkeep
+
+# Uploaded media (avatars) — lives on a persistent volume, never in git
+media/
+backend/media/
+.pytest_cache/

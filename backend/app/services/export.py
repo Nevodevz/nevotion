@@ -13,6 +13,12 @@ from app.models import Lead, LeadSource, Service, LeadStage, User, Deal, Finance
 HEADER_FILL = PatternFill("solid", fgColor="4648D4")
 HEADER_FONT = Font(bold=True, color="FFFFFF")
 
+DEAL_STATUS_LABELS = {
+    "pending": "Нет оплат",
+    "partial": "Оплачена часть",
+    "paid": "Оплачено полностью",
+}
+
 
 def _header(ws, columns: list[str]):
     for col, title in enumerate(columns, 1):
@@ -40,26 +46,51 @@ def export_leads_xlsx(
         q = q.filter(Lead.stage_id == stage_id)
     leads = q.order_by(Lead.created_at.desc()).all()
 
+    # Money comes from the deal (canonical), not the deprecated lead columns.
+    deals_by_lead: dict[int, Deal] = {}
+    if leads:
+        for d in (
+            db.query(Deal)
+            .filter(Deal.lead_id.in_([l.id for l in leads]))
+            .order_by(Deal.lead_id, Deal.created_at.desc(), Deal.id.desc())
+            .all()
+        ):
+            deals_by_lead.setdefault(d.lead_id, d)
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Лиды"
 
-    cols = ["Дата", "Клиент", "Телефон", "Источник", "Услуга", "Сеттер", "Клоузер",
-            "Этап", "Потенциал", "Факт", "Статус"]
+    cols = ["Дата", "Клиент", "Телефон", "Источник", "Уточнение источника",
+            "Рилс / контент", "UTM source", "UTM medium", "UTM campaign",
+            "UTM content", "Внешний ID", "Услуга", "Сеттер", "Клоузер", "Этап",
+            "Сумма сделки", "Оплачено", "Остаток", "Статус оплаты", "Статус"]
     _header(ws, cols)
 
     for lead in leads:
+        deal = deals_by_lead.get(lead.id)
+        amount = int(deal.amount or 0) if deal else 0
+        paid = int(deal.paid_amount or 0) if deal else 0
         ws.append([
             lead.created_at.strftime("%d.%m.%Y") if lead.created_at else "",
             lead.client_name,
             lead.phone,
             lead.source.name if lead.source else "",
+            lead.source_detail or "",
+            lead.content_ref or "",
+            lead.utm_source or "",
+            lead.utm_medium or "",
+            lead.utm_campaign or "",
+            lead.utm_content or "",
+            lead.external_lead_id or "",
             lead.service.name if lead.service else "",
             lead.setter.name if lead.setter else "",
             lead.closer.name if lead.closer else "",
             lead.stage.name if lead.stage else "",
-            lead.potential_amount,
-            lead.actual_amount,
+            amount,
+            paid,
+            max(amount - paid, 0),
+            DEAL_STATUS_LABELS.get(deal.status if deal else "pending", "Нет оплат"),
             "Активный" if lead.status == "active" else "Архив",
         ])
 

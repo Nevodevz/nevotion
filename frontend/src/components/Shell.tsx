@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
-import { api, searchApi, notifApi, bugApi } from "@/lib/api";
+import { api, searchApi, notifApi } from "@/lib/api";
 import type { Department } from "@/lib/types";
 import { Avatar } from "./Avatar";
 
@@ -16,9 +16,9 @@ const NAV_MAIN = [
 const SALES_SLUG = "sales";
 const FINANCE_SLUG = "finance";
 
+// «Лиды» and «Воронка продаж» are one page now — a single entry, two views.
 const SALES_SUBNAV = [
-  { href: "/leads",    icon: "contacts",      label: "Лиды" },
-  { href: "/funnel",   icon: "filter_alt",    label: "Воронка продаж" },
+  { href: "/leads",    icon: "contacts",      label: "Лиды и воронка" },
   { href: "/dept/sales?meetings=1", icon: "handshake", label: "Встречи" },
   { href: "/dept/sales", icon: "bar_chart",   label: "Дневник" },
 ];
@@ -55,7 +55,6 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
   const searchRef = useRef<HTMLDivElement>(null);
   const searchTimer = useRef<any>(null);
 
-  const [bugCount, setBugCount] = useState(0);
   const [notifs, setNotifs] = useState<{ count: number; items: any[] }>({ count: 0, items: [] });
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -68,7 +67,7 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
     if (user) {
       api.listDepartments().then(setDepartments).catch(() => {});
       notifApi.get().then(setNotifs).catch(() => {});
-      bugApi.countNew().then((r) => setBugCount(r.count)).catch(() => {});
+      // No unread indicator for «Баги» — the bell handles real notifications.
     }
   }, [user]);
 
@@ -150,11 +149,6 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
             <Link href="/bugs" className={`nav-link ${pathname.startsWith("/bugs") ? "active" : ""}`}>
               <span className="material-symbols-outlined nav-ico">bug_report</span>
               <span style={{ flex: 1 }}>Баги</span>
-              {isAdmin && bugCount > 0 && (
-                <span style={{ background: "var(--red)", color: "white", fontSize: 10, fontWeight: 700, borderRadius: 8, padding: "1px 5px", fontFamily: "JetBrains Mono, monospace" }}>
-                  {bugCount > 9 ? "9+" : bugCount}
-                </span>
-              )}
             </Link>
           </div>
 
@@ -251,7 +245,7 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
         <div className="sidebar-foot">
           <div className="foot-user-row">
             <div className="foot-user-info" onClick={() => router.push("/profile")}>
-              <Avatar name={user.name} color={user.avatar_color} size={32} />
+              <Avatar name={user.name} color={user.avatar_color} src={user.avatar_url} size={32} />
               <div style={{ minWidth: 0 }}>
                 <div className="foot-name">{user.name}</div>
                 <div className="foot-role">{isAdmin ? "Администратор" : user.position}</div>
@@ -300,7 +294,7 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
                           <div className="search-section-label">Сотрудники</div>
                           {searchResults.users.map((u: any) => (
                             <div key={u.id} className="search-item" onClick={() => handleSearchSelect(u)}>
-                              <Avatar name={u.name} color={u.avatar_color} size={24} />
+                              <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={24} />
                               <div><div className="si-title">{u.name}</div><div className="si-meta">{u.position}</div></div>
                             </div>
                           ))}

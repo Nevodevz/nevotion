@@ -377,15 +377,18 @@ def get_summary(
     )
     total_on_accounts = sum(b.balance for b in latest_balances)
 
-    # Forecast: plan income = deals expected in next 30 days (expected_payment_date)
-    from app.models import Deal
+    # Forecast: plan income = outstanding scheduled payments due in the next 30 days
+    from app.models import DealPayment
     from datetime import timedelta
     today = date.today()
-    plan_income = db.query(func.coalesce(func.sum(Deal.amount), 0)).filter(
-        Deal.status == "pending",
-        Deal.expected_payment_date >= today,
-        Deal.expected_payment_date <= today + timedelta(days=30),
+    plan_income = db.query(
+        func.coalesce(func.sum(DealPayment.planned_amount - DealPayment.paid_amount), 0)
+    ).filter(
+        DealPayment.status.notin_(["paid", "cancelled"]),
+        DealPayment.planned_date >= today,
+        DealPayment.planned_date <= today + timedelta(days=30),
     ).scalar() or 0
+    plan_income = max(int(plan_income), 0)
 
     # Monthly average expenses as rough forecast
     avg_monthly_expenses = expenses  # within queried period as proxy

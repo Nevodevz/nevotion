@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Lead, LeadStage, Meeting, Deal, FinanceTransaction,
+    Lead, LeadStage, Meeting, Deal, DealPayment, FinanceTransaction,
     AdExpense, PayrollRecord, MonthlyPlan, LeadSource, Service, Account, AccountBalance, Debt,
 )
 from app.services.marketing import marketing_totals, source_metrics
@@ -116,18 +116,26 @@ def dashboard_metrics(db: Session, date_from: Optional[date], date_to: Optional[
     # ── Deals pipeline ──
     won_stage_ids = {s.id for s in db.query(LeadStage).filter(LeadStage.is_won == True).all()}
 
-    pending_deals = db.query(Deal).filter(Deal.status == "pending").all()
-    pending_amount = sum(d.amount for d in pending_deals)
+    # "Pending" now covers partially-paid deals too, and the outstanding figure
+    # is the unpaid remainder rather than the whole deal amount.
+    pending_deals = db.query(Deal).filter(Deal.status.in_(["pending", "partial"])).all()
+    pending_amount = sum(max(int(d.amount or 0) - int(d.paid_amount or 0), 0) for d in pending_deals)
     pending_count = len(pending_deals)
 
-    # leads in contract stage (ожидание оплаты)
+    # leads in contract stage (ожидание оплаты) — summed from their deals
     contract_stages = db.query(LeadStage).filter(
         LeadStage.name.in_(["Договор", "Ожидание оплаты"])
     ).all()
     contract_stage_ids = {s.id for s in contract_stages}
-    waiting_leads_amount = db.query(func.coalesce(func.sum(Lead.potential_amount), 0)).filter(
-        Lead.stage_id.in_(contract_stage_ids)
-    ).scalar() or 0 if contract_stage_ids else 0
+    waiting_leads_amount = 0
+    if contract_stage_ids:
+        waiting_leads_amount = db.query(
+            func.coalesce(func.sum(Deal.amount - Deal.paid_amount), 0)
+        ).join(Lead, Lead.id == Deal.lead_id).filter(
+            Lead.stage_id.in_(contract_stage_ids),
+            Deal.status != "paid",
+        ).scalar() or 0
+        waiting_leads_amount = max(int(waiting_leads_amount), 0)
 
     # ── Expenses this month ──
     expenses_month = db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0)).filter(
@@ -155,11 +163,15 @@ def dashboard_metrics(db: Session, date_from: Optional[date], date_to: Optional[
 
     # ── Cashflow forecast (simple) ──
     today_fin = date.today()
-    plan_income_30 = db.query(func.coalesce(func.sum(Deal.amount), 0)).filter(
-        Deal.status == "pending",
-        Deal.expected_payment_date >= today_fin,
-        Deal.expected_payment_date <= today_fin + timedelta(days=30),
+    # Expected income comes from the payment schedule (outstanding part only).
+    plan_income_30 = db.query(
+        func.coalesce(func.sum(DealPayment.planned_amount - DealPayment.paid_amount), 0)
+    ).filter(
+        DealPayment.status.notin_(["paid", "cancelled"]),
+        DealPayment.planned_date >= today_fin,
+        DealPayment.planned_date <= today_fin + timedelta(days=30),
     ).scalar() or 0
+    plan_income_30 = max(int(plan_income_30), 0)
 
     monthly_expense_rate = expenses_month or 1
     forecast_7 = total_on_accounts - int(monthly_expense_rate * 7 / 30)
@@ -254,8 +266,10 @@ def charts_data(db: Session, date_from: Optional[date], date_to: Optional[date])
             "revenue": sales_by_day.get(ds, {}).get("revenue", 0),
         })
 
-    # ── Funnel by stages ──
-    stages = db.query(LeadStage).order_by(LeadStage.position).all()
+    # ── Funnel by stages (archived stages are not part of the active funnel) ──
+    stages = db.query(LeadStage).filter(
+        LeadStage.is_archived == False  # noqa: E712
+    ).order_by(LeadStage.position).all()
     funnel = []
     for stage in stages:
         cnt = db.query(func.count(Lead.id)).filter(Lead.stage_id == stage.id).scalar() or 0
@@ -422,10 +436,10 @@ def problems(db: Session) -> list[dict]:
         })
 
     # ── Overdue expected payments ──
-    overdue_payments = db.query(func.count(Deal.id)).filter(
-        Deal.status == "pending",
-        Deal.expected_payment_date.isnot(None),
-        Deal.expected_payment_date < today,
+    overdue_payments = db.query(func.count(DealPayment.id)).filter(
+        DealPayment.status.notin_(["paid", "cancelled"]),
+        DealPayment.planned_date < today,
+        DealPayment.planned_amount > DealPayment.paid_amount,
     ).scalar() or 0
     if overdue_payments > 0:
         issues.append({

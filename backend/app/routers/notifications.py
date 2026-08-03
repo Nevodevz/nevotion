@@ -96,7 +96,7 @@ def get_notifications(db: Session = Depends(get_db), user: User = Depends(get_cu
             ))
 
     # ─── 4. Meetings: today (Asia/Bishkek) ───────────────────────
-    today_start = datetime(_now := now_bk).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = now_bk.replace(hour=0, minute=0, second=0, microsecond=0)
     today_start_utc = today_start.astimezone(timezone.utc)
     today_end_utc = (today_start + timedelta(days=1)).astimezone(timezone.utc)
 
@@ -196,21 +196,22 @@ def get_notifications(db: Session = Depends(get_db), user: User = Depends(get_cu
             ))
 
     # ─── 8. Overdue payments (admin/finance) ─────────────────────
+    # Driven by the payment schedule — the old Deal.expected_payment_date could
+    # not represent partial payments or multi-instalment deals.
     if _is_finance_admin(user) or _is_sales(user):
-        overdue_deals = (
-            db.query(Deal)
-            .filter(
-                Deal.status == "pending",
-                Deal.expected_payment_date.isnot(None),
-                Deal.expected_payment_date < today_bk,
-            ).limit(10).all()
-        )
-        for d in overdue_deals:
+        from app.services.deals import overdue_payments
+        for p in overdue_payments(db, today_bk)[:10]:
+            deal = db.query(Deal).filter(Deal.id == p.deal_id).first()
+            if deal is None:
+                continue
+            outstanding = int(p.planned_amount or 0) - int(p.paid_amount or 0)
+            lead = db.query(Lead).filter(Lead.id == deal.lead_id).first()
+            who = (lead.company_name or lead.client_name) if lead else f"сделка #{deal.id}"
             notifs.append(_notif(
-                f"payment_overdue_{d.id}", "payment_overdue", "warning",
-                f"Оплата просрочена: сделка #{d.id}",
-                f"Ожидалась {d.expected_payment_date.strftime('%d.%m')} · {d.amount:,} сом",
-                link=f"/leads/{d.lead_id}" if d.lead_id else "/funnel",
+                f"payment_overdue_{p.id}", "payment_overdue", "warning",
+                f"Оплата просрочена: {who}",
+                f"Ожидалась {p.planned_date.strftime('%d.%m')} · остаток {outstanding:,} сом".replace(",", " "),
+                link=f"/leads/{deal.lead_id}" if deal.lead_id else "/leads?view=funnel",
             ))
 
     # ─── 9. Recent deals — paid or minus (admin/founder) ─────────
@@ -226,7 +227,7 @@ def get_notifications(db: Session = Depends(get_db), user: User = Depends(get_cu
                 f"deal_paid_{d.id}", "deal_paid", "info",
                 f"Оплата получена: сделка #{d.id}",
                 f"{d.paid_amount:,} сом",
-                link=f"/leads/{d.lead_id}" if d.lead_id else "/funnel",
+                link=f"/leads/{d.lead_id}" if d.lead_id else "/leads?view=funnel",
             ))
 
         recent_minus = (

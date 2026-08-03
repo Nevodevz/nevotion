@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -13,7 +15,7 @@ from app.middleware import last_seen_middleware
 from app.routers import (
     auth, users, projects, tasks, departments, boards, sales, marketing,
     search, notifications, meetings, bug_reports, leads, finance, payroll, analytics,
-    api_keys, lab_projects,
+    api_keys, lab_projects, calendar as calendar_router,
 )
 from app.routers import settings as settings_router
 
@@ -24,6 +26,8 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     settings.check_production_security()
     Base.metadata.create_all(bind=engine)
+    # Media lives on a persistent volume; create it so the first upload succeeds.
+    Path(settings.MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
     yield
 
 
@@ -67,6 +71,16 @@ app.include_router(payroll.router)
 app.include_router(analytics.router)
 app.include_router(api_keys.router)
 app.include_router(lab_projects.router)
+app.include_router(calendar_router.router)
+
+# Uploaded media (avatars). In production nginx serves this path directly and
+# never reaches the app; the mount keeps local development working.
+Path(settings.MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
+app.mount(
+    settings.MEDIA_URL_PREFIX,
+    StaticFiles(directory=settings.MEDIA_ROOT),
+    name="media",
+)
 
 
 @app.get("/api/health")

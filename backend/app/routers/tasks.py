@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models import Task, Board, BoardColumn, User, Role
-from app.schemas import TaskOut, TaskCreate, TaskUpdate, TaskMove
+from app.models import Task, Board, BoardColumn, TaskKind, User, Role
+from app.schemas import TaskOut, TaskCreate, TaskUpdate, TaskMove, BoardTasksOut
 from app.routers.boards import _can_edit_board, _can_view_board
 
 
@@ -98,7 +98,17 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db), user: User =
     if board.kind == "personal" and board.owner_id != user.id and not data.get("requester_id"):
         data["requester_id"] = user.id
 
-    task = Task(**data)
+    if data.get("kind") == TaskKind.meeting and not data.get("start_at"):
+        raise HTTPException(422, "Для задачи типа «Встреча» укажите дату и время начала")
+
+    # New cards land at the bottom of their column.
+    last = (
+        db.query(Task)
+        .filter(Task.column_id == data.get("column_id"))
+        .order_by(Task.position.desc())
+        .first()
+    ) if data.get("column_id") else None
+    task = Task(**data, position=(last.position + 1) if last else 0)
     _apply_done_logic(db, task)
     db.add(task)
     db.commit()
@@ -115,13 +125,42 @@ def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)
         _validate_column(db, updates["column_id"], task.board_id)
     for f, v in updates.items():
         setattr(task, f, v)
+    if task.kind == TaskKind.meeting and not task.start_at:
+        raise HTTPException(422, "Для задачи типа «Встреча» укажите дату и время начала")
     _apply_done_logic(db, task)
     db.commit()
     return _load(db, task_id)
 
 
-@router.patch("/{task_id}/move", response_model=TaskOut)
+def _normalize_column(db: Session, column_id: int | None) -> list[Task]:
+    """Re-pack a column's positions to 0..n-1, no duplicates, no gaps.
+
+    Legacy rows frequently share the same position (everything defaulted to 0),
+    so ordering falls back to id to keep the result stable and deterministic.
+    """
+    if column_id is None:
+        return []
+    tasks = (
+        db.query(Task)
+        .filter(Task.column_id == column_id)
+        .order_by(Task.position, Task.id)
+        .all()
+    )
+    for idx, t in enumerate(tasks):
+        if t.position != idx:
+            t.position = idx
+    db.flush()
+    return tasks
+
+
+@router.patch("/{task_id}/move", response_model=BoardTasksOut)
 def move_task(task_id: int, payload: TaskMove, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Move a card between columns and/or reorder it inside one.
+
+    Positions are rebuilt from scratch for the affected columns rather than
+    patched with relative shifts, so duplicate legacy positions self-heal and the
+    result is always a clean 0..n-1 sequence.
+    """
     task = _load(db, task_id)
     if not _can_modify(db, user, task):
         raise HTTPException(403, "Вы можете перемещать только свои задачи")
@@ -130,43 +169,37 @@ def move_task(task_id: int, payload: TaskMove, db: Session = Depends(get_db), us
     old_col = task.column_id
     new_col = payload.column_id
 
-    if old_col != new_col:
-        # Shift tasks in old column: close the gap
-        if old_col:
-            db.query(Task).filter(
-                Task.column_id == old_col,
-                Task.position > task.position,
-                Task.id != task_id,
-            ).update({Task.position: Task.position - 1})
-
-        # Shift tasks in new column: open a slot at target position
-        db.query(Task).filter(
-            Task.column_id == new_col,
-            Task.position >= payload.position,
-            Task.id != task_id,
-        ).update({Task.position: Task.position + 1})
-    else:
-        # Same column reorder
-        if task.position < payload.position:
-            db.query(Task).filter(
-                Task.column_id == new_col,
-                Task.position > task.position,
-                Task.position <= payload.position,
-                Task.id != task_id,
-            ).update({Task.position: Task.position - 1})
-        else:
-            db.query(Task).filter(
-                Task.column_id == new_col,
-                Task.position >= payload.position,
-                Task.position < task.position,
-                Task.id != task_id,
-            ).update({Task.position: Task.position + 1})
+    # Build the target column's order explicitly, then renumber.
+    siblings = (
+        db.query(Task)
+        .filter(Task.column_id == new_col, Task.id != task_id)
+        .order_by(Task.position, Task.id)
+        .all()
+    )
+    index = max(0, min(payload.position, len(siblings)))
+    ordered = siblings[:index] + [task] + siblings[index:]
 
     task.column_id = new_col
-    task.position = payload.position
+    for idx, t in enumerate(ordered):
+        t.position = idx
+    db.flush()
+
+    if old_col is not None and old_col != new_col:
+        _normalize_column(db, old_col)
+
     _apply_done_logic(db, task)
     db.commit()
-    return _load(db, task_id)
+
+    # Return every task the client needs to redraw both affected columns.
+    affected_cols = {c for c in (old_col, new_col) if c is not None}
+    tasks = (
+        db.query(Task)
+        .options(joinedload(Task.owner), joinedload(Task.requester))
+        .filter(Task.column_id.in_(affected_cols))
+        .order_by(Task.position, Task.id)
+        .all()
+    ) if affected_cols else []
+    return BoardTasksOut(tasks=tasks)
 
 
 @router.patch("/{task_id}/complete", response_model=TaskOut)

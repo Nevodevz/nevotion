@@ -91,7 +91,7 @@ export default function LabProjectKanbanPage() {
                 <div style={{ display: "flex", gap: 4 }}>
                   {project.members.map((m) => m.user && (
                     <div key={m.id} title={m.user.name}>
-                      <Avatar name={m.user.name} color={m.user.avatar_color} size={28} />
+                      <Avatar name={m.user.name} color={m.user.avatar_color} src={m.user.avatar_url} size={28} />
                     </div>
                   ))}
                 </div>

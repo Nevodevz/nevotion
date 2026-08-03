@@ -89,7 +89,7 @@ export default function BugsPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
                         {b.reporter ? (
                           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 20, background: "var(--bg3)", border: "0.5px solid var(--border)" }}>
-                            <Avatar name={b.reporter.name} color={b.reporter.avatar_color} size={16} />
+                            <Avatar name={b.reporter.name} color={b.reporter.avatar_color} src={b.reporter.avatar_url} size={16} />
                             <span style={{ fontSize: 11, color: "var(--text2)", fontWeight: 500 }}>{b.reporter.name}</span>
                           </div>
                         ) : (
@@ -229,7 +229,7 @@ function BugDetailModal({ open, onClose, bug, isAdmin, currentUserId, onSaved }:
         {bug.reporter && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: "8px 12px", background: "var(--bg3)", borderRadius: 8, border: "0.5px solid var(--border)" }}>
             <span style={{ fontSize: 11, color: "var(--text3)", flexShrink: 0 }}>Автор:</span>
-            <Avatar name={bug.reporter.name} color={bug.reporter.avatar_color} size={22} />
+            <Avatar name={bug.reporter.name} color={bug.reporter.avatar_color} src={bug.reporter.avatar_url} size={22} />
             <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{bug.reporter.name}</span>
             <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text3)" }}>{bug.reporter.position}</span>
           </div>

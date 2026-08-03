@@ -129,7 +129,7 @@ function ProjectModal({ open, project, allUsers, onClose, onSaved }: ProjectModa
                 }}
               >
                 <input type="checkbox" checked={selected} readOnly style={{ accentColor: "var(--primary)", cursor: "pointer" }} />
-                <Avatar name={u.name} color={u.avatar_color} size={26} />
+                <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={26} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{u.name}</div>
                   <div style={{ fontSize: 11, color: "var(--text3)" }}>{u.position}</div>
@@ -280,7 +280,7 @@ export function NevoLabsDepartmentView({ dept, departments }: { dept: Department
                         <div style={{ display: "flex", gap: -4, flexWrap: "wrap" }}>
                           {p.members.slice(0, 5).map((m) => m.user && (
                             <div key={m.id} style={{ marginRight: 4 }} title={m.user.name}>
-                              <Avatar name={m.user.name} color={m.user.avatar_color} size={26} />
+                              <Avatar name={m.user.name} color={m.user.avatar_color} src={m.user.avatar_url} size={26} />
                             </div>
                           ))}
                           {p.members.length > 5 && (

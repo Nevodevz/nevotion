@@ -550,7 +550,7 @@ export function HiddenDepartmentView() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
         {founders.map((u) => (
           <div key={u.id} className="card" style={{ padding: 18, cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }} onClick={() => router.push(`/team/${u.id}`)}>
-            <Avatar name={u.name} color={u.avatar_color} size={42} />
+            <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={42} />
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{u.name}</div>
               <div style={{ fontSize: 12, color: "var(--text3)", marginTop: 2 }}>{u.position}</div>

@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Deal, Lead, FinanceTransaction, PayrollRule, Project, ProjectStatus,
+    Deal, Lead, PayrollRule, Project, ProjectStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,42 +38,16 @@ def _get_any_rule(db: Session, employee_id: int, on_date: date) -> PayrollRule |
 
 
 def on_deal_paid(db: Session, deal: Deal) -> None:
+    """Runs once a deal is fully paid: commissions + downstream project.
+
+    Income transactions are NOT created here — each confirmed DealPayment owns
+    its own transaction (see ``app.services.deals.sync_finance_transaction``),
+    which is what keeps partial payments from double-counting revenue.
+    """
     lead: Lead | None = db.query(Lead).filter(Lead.id == deal.lead_id).first()
     pay_date: date = deal.payment_date or date.today()
 
-    # ── (а) Доход ────────────────────────────────────────────────
-    try:
-        existing_income = (
-            db.query(FinanceTransaction)
-            .filter(
-                FinanceTransaction.related_deal_id == deal.id,
-                FinanceTransaction.type == "income",
-            )
-            .first()
-        )
-        if not existing_income:
-            client = lead.company_name or lead.client_name if lead else f"сделка #{deal.id}"
-            service_name = ""
-            if lead and lead.service_id:
-                from app.models import Service
-                svc = db.query(Service).filter(Service.id == lead.service_id).first()
-                service_name = f", {svc.name}" if svc else ""
-            db.add(FinanceTransaction(
-                type="income",
-                category=None,
-                amount=deal.paid_amount,
-                date=pay_date,
-                related_lead_id=deal.lead_id,
-                related_deal_id=deal.id,
-                payment_method=deal.payment_method,
-                comment=f"Оплата сделки {client}{service_name}",
-            ))
-            db.flush()
-            logger.info("Finance income created for deal %s, amount %s", deal.id, deal.paid_amount)
-    except Exception:
-        logger.exception("Failed to create income transaction for deal %s", deal.id)
-
-    # ── (б) Комиссия сеттера ─────────────────────────────────────
+    # ── (а) Комиссия сеттера ─────────────────────────────────────
     try:
         setter_comm = 0
         if deal.deal_type == "from_setter" and deal.setter_id:
@@ -88,7 +62,7 @@ def on_deal_paid(db: Session, deal: Deal) -> None:
     except Exception:
         logger.exception("Failed to calculate setter commission for deal %s", deal.id)
 
-    # ── (в) Комиссия клоузера ────────────────────────────────────
+    # ── (б) Комиссия клоузера ────────────────────────────────────
     try:
         closer_comm = 0
         if deal.closer_id:
@@ -106,7 +80,7 @@ def on_deal_paid(db: Session, deal: Deal) -> None:
     except Exception:
         logger.exception("Failed to calculate closer commission for deal %s", deal.id)
 
-    # ── (г) Проект в разработке ──────────────────────────────────
+    # ── (в) Проект в разработке ──────────────────────────────────
     try:
         if deal.lead_id:
             existing_server = (

@@ -46,6 +46,9 @@ class User(Base):
     position: Mapped[str] = mapped_column(String(80), default="Сотрудник")
     is_founder: Mapped[bool] = mapped_column(Boolean, default=False)  # доступ к скрытой части
     avatar_color: Mapped[str] = mapped_column(String(20), default="indigo")
+    # Relative media path served by backend/nginx, e.g. "/media/avatars/7_a1b2.webp".
+    # Empty string = fall back to initials + avatar_color.
+    avatar_url: Mapped[str] = mapped_column(String(500), default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # False = archived
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -121,6 +124,16 @@ class BoardColumn(Base):
     board: Mapped["Board"] = relationship(back_populates="columns")
 
 
+class TaskKind(str, enum.Enum):
+    """Structured card type on personal boards.
+
+    Deliberately separate from the free-text ``Task.task_type`` (which the backend
+    queue board uses for values like "API"/"Деплой").
+    """
+    task = "task"
+    meeting = "meeting"
+
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -142,6 +155,15 @@ class Task(Base):
     requester_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     assignee_ids: Mapped[list | None] = mapped_column(JSON, default=list)  # multiple backend assignees
     task_type: Mapped[str] = mapped_column(String(80), default="")
+
+    # Personal-board card type. `meeting` cards carry a time window and show up in
+    # the personal calendar. They are NOT CRM meetings — see the Meeting model.
+    kind: Mapped[TaskKind] = mapped_column(
+        Enum(TaskKind, name="taskkind"), default=TaskKind.task, nullable=False, server_default="task"
+    )
+    start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    location: Mapped[str] = mapped_column(String(500), default="")
 
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
 
@@ -238,6 +260,9 @@ class LeadStage(Base):
     is_won: Mapped[bool] = mapped_column(Boolean, default=False)
     is_lost: Mapped[bool] = mapped_column(Boolean, default=False)
     color: Mapped[str] = mapped_column(String(30), default="#4648d4")
+    # Archived stages stay in the DB so history and old leads remain readable,
+    # but they are excluded from the active sequence: forms, funnel, stage pickers.
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
 
 
 class RejectReason(Base):
@@ -293,6 +318,9 @@ class Lead(Base):
     setter_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     closer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
+    # DEPRECATED — the canonical deal amount lives in Deal.amount and the paid total
+    # is derived from confirmed DealPayment rows. These two columns are kept only so
+    # legacy reads keep working; the backend mirrors them and the UI never shows them.
     potential_amount: Mapped[int] = mapped_column(Integer, default=0)
     actual_amount: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[LeadStatus] = mapped_column(Enum(LeadStatus), default=LeadStatus.active)
@@ -300,6 +328,19 @@ class Lead(Base):
     next_action_type: Mapped[str] = mapped_column(String(80), default="")
     next_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     comment: Mapped[str] = mapped_column(Text, default="")
+
+    # ── Attribution ──────────────────────────────────────────────
+    # `source_id` stays the coarse channel. These refine it down to a single
+    # creative / reel, either entered by hand or filled from UTM parameters.
+    source_detail: Mapped[str] = mapped_column(String(200), default="")
+    content_ref: Mapped[str] = mapped_column(String(500), default="")   # reel/post URL or ID
+    utm_source: Mapped[str] = mapped_column(String(200), default="")
+    utm_medium: Mapped[str] = mapped_column(String(200), default="")
+    utm_campaign: Mapped[str] = mapped_column(String(200), default="")
+    utm_content: Mapped[str] = mapped_column(String(200), default="")
+    # ID assigned by the ad platform (Meta Lead Ads etc). Unique-ish; used for
+    # idempotency once a webhook integration exists.
+    external_lead_id: Mapped[str] = mapped_column(String(200), default="", index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -358,11 +399,14 @@ class LeadFile(Base):
 # ─────────────────────────────────────────────────────────────────
 
 class MeetingStatus(str, enum.Enum):
-    scheduled  = "scheduled"   # запланирована
+    scheduled  = "scheduled"   # Запланирована
     closed     = "closed"      # Закрыт
     minus      = "minus"       # Минус
     push       = "push"        # Дожим
     rescheduled = "rescheduled" # Перенёс
+    # Meeting did not take place at all — distinct from "Минус" (took place, lost)
+    # and from "Перенёс" (moved to a new date).
+    not_held   = "not_held"    # Не проведено
 
 
 class Meeting(Base):
@@ -377,7 +421,11 @@ class Meeting(Base):
     client_name:   Mapped[str]            = mapped_column(String(200), nullable=False)
     client_phone:  Mapped[str]            = mapped_column(String(50), default="")
     status:        Mapped[MeetingStatus]  = mapped_column(Enum(MeetingStatus), default=MeetingStatus.scheduled)
+    # Canonical storage for the user-facing «Комментарий» field.
     notes:         Mapped[str]            = mapped_column(Text, default="")
+    # How long the meeting is expected to run. Existing rows fall back to 60
+    # minutes so the calendar can always place them on the hour grid.
+    duration_minutes: Mapped[int]         = mapped_column(Integer, default=60, nullable=False, server_default="60")
     parent_id:     Mapped[int | None]     = mapped_column(ForeignKey("meetings.id", ondelete="SET NULL"), nullable=True)
     lead_id:       Mapped[int | None]     = mapped_column(ForeignKey("leads.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at:    Mapped[datetime]       = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -392,17 +440,38 @@ class Meeting(Base):
     )
 
 
+class DealStatus(str, enum.Enum):
+    pending = "pending"   # оплат нет
+    partial = "partial"   # оплачена часть
+    paid    = "paid"      # оплачена вся сумма
+
+
+class PaymentStatus(str, enum.Enum):
+    planned   = "planned"    # Запланирован
+    partial   = "partial"    # Частично оплачен
+    paid      = "paid"       # Оплачен
+    cancelled = "cancelled"  # Отменён
+    # NOTE: "просрочен" is NOT stored — it is derived by the server from
+    # planned_date + outstanding amount, so it can never go stale.
+
+
 class Deal(Base):
-    """Сделка — финансовые данные лида."""
+    """Сделка — единственный источник истины по сумме сделки.
+
+    ``amount``      — сумма сделки (canonical).
+    ``paid_amount`` — производное значение: сумма подтверждённых DealPayment.
+    Остаток нигде не хранится, он всегда max(amount - paid_amount, 0).
+    """
     __tablename__ = "deals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), nullable=False, index=True)
     amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Recomputed from confirmed payments — never set directly by request payloads.
     paid_amount: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     payment_method: Mapped[str] = mapped_column(String(120), default="")
-    status: Mapped[str] = mapped_column(String(30), default="pending")  # pending | paid
+    status: Mapped[str] = mapped_column(String(30), default="pending")  # pending | partial | paid
     setter_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     closer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     deal_type: Mapped[str] = mapped_column(String(40), default="")  # from_setter | closer_self
@@ -417,6 +486,44 @@ class Deal(Base):
     setter: Mapped["User"] = relationship(foreign_keys=[setter_id])
     closer: Mapped["User"] = relationship(foreign_keys=[closer_id])
     responsible: Mapped["User | None"] = relationship(foreign_keys=[responsible_id])
+    payments: Mapped[list["DealPayment"]] = relationship(
+        back_populates="deal", cascade="all, delete-orphan", order_by="DealPayment.planned_date"
+    )
+
+
+class DealPayment(Base):
+    """Одна строка графика оплат сделки (плановый платёж / транш)."""
+    __tablename__ = "deal_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deal_id: Mapped[int] = mapped_column(ForeignKey("deals.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    planned_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    planned_amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    paid_amount: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    paid_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    status: Mapped[PaymentStatus] = mapped_column(
+        Enum(PaymentStatus, name="paymentstatus"), default=PaymentStatus.planned, nullable=False
+    )
+    payment_method: Mapped[str] = mapped_column(String(120), default="")
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
+    comment: Mapped[str] = mapped_column(Text, default="")
+
+    # Idempotency anchor: a confirmed payment owns exactly one income transaction.
+    finance_transaction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("finance_transactions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    deal: Mapped["Deal"] = relationship(back_populates="payments")
+    account: Mapped["Account | None"] = relationship(foreign_keys=[account_id])
+    author: Mapped["User | None"] = relationship(foreign_keys=[created_by])
+    editor: Mapped["User | None"] = relationship(foreign_keys=[updated_by])
 
 
 # ───────────────────────── Finance ─────────────────────────

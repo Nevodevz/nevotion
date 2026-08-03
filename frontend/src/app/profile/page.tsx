@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Shell } from "@/components/Shell";
+import { Avatar } from "@/components/Avatar";
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { api, apiKeys as apiKeysApi } from "@/lib/api";
 import { AVATAR_COLORS, ApiKey, ApiKeyCreated } from "@/lib/types";
-import { Button, Input, Card, PageHeader, FormField } from "@/components/ui";
+import { Button, Input, Card, ConfirmModal, PageHeader, FormField } from "@/components/ui";
 
 const COLORS = Object.keys(AVATAR_COLORS);
+const ACCEPTED_AVATAR_TYPES = "image/jpeg,image/png,image/webp";
+const MAX_AVATAR_MB = 5;
 
 function ApiKeysSection() {
   const toast = useToast();
@@ -189,6 +192,51 @@ export default function ProfilePage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pwSaving, setPwSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [confirmRemoveAvatar, setConfirmRemoveAvatar] = useState(false);
+
+  async function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset immediately so picking the same file twice still fires onChange.
+    e.target.value = "";
+    if (!file || !user) return;
+
+    // Client-side pre-checks; the server validates the real content regardless.
+    if (!ACCEPTED_AVATAR_TYPES.split(",").includes(file.type)) {
+      toast("Поддерживаются только JPEG, PNG и WebP", "error");
+      return;
+    }
+    if (file.size > MAX_AVATAR_MB * 1024 * 1024) {
+      toast(`Файл больше ${MAX_AVATAR_MB} МБ`, "error");
+      return;
+    }
+
+    setAvatarBusy(true);
+    try {
+      await api.uploadAvatar(user.id, file);
+      await refreshUser();
+      toast("Аватар обновлён");
+    } catch (err: unknown) {
+      toast((err as Error).message || "Не удалось загрузить аватар", "error");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  async function removeAvatar() {
+    if (!user) return;
+    setAvatarBusy(true);
+    try {
+      await api.deleteAvatar(user.id);
+      await refreshUser();
+      toast("Фото удалено — показываются инициалы");
+    } catch (err: unknown) {
+      toast((err as Error).message || "Не удалось удалить фото", "error");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (user) setForm({ name: user.name, position: user.position, avatar_color: user.avatar_color });
@@ -230,25 +278,59 @@ export default function ProfilePage() {
 
           {/* LEFT — profile info */}
           <Card padding={28} style={{ overflow: "visible" }}>
-            <div style={{ position: "relative", width: 120, height: 120, marginBottom: 20 }}>
-              <div style={{
-                width: 120, height: 120, borderRadius: 16,
-                background: AVATAR_COLORS[form.avatar_color]?.fg ?? AVATAR_COLORS.indigo.fg,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 42, fontWeight: 700, color: "white",
-              }}>
-                {(form.name || user.name).slice(0, 1).toUpperCase()}
-              </div>
-              {/* Camera icon — not yet functional */}
-              <div style={{
-                position: "absolute", bottom: -6, right: -6,
-                width: 32, height: 32, borderRadius: "50%",
-                background: "var(--bg2)", border: "2px solid var(--border)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "default", opacity: 0.4, pointerEvents: "none",
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16, color: "var(--text2)" }}>photo_camera</span>
-              </div>
+            <div style={{ position: "relative", width: 120, height: 120, marginBottom: 12 }}>
+              {user.avatar_url ? (
+                <Avatar name={form.name || user.name} color={form.avatar_color}
+                  src={user.avatar_url} size={120} square />
+              ) : (
+                <div style={{
+                  width: 120, height: 120, borderRadius: 16,
+                  background: AVATAR_COLORS[form.avatar_color]?.fg ?? AVATAR_COLORS.indigo.fg,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 42, fontWeight: 700, color: "white",
+                }}>
+                  {(form.name || user.name).slice(0, 1).toUpperCase()}
+                </div>
+              )}
+
+              <input ref={fileRef} type="file" accept={ACCEPTED_AVATAR_TYPES}
+                onChange={handleAvatarPick} style={{ display: "none" }} />
+
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={avatarBusy}
+                aria-label="Загрузить фото профиля"
+                title="Загрузить фото"
+                style={{
+                  position: "absolute", bottom: -6, right: -6,
+                  width: 34, height: 34, borderRadius: "50%",
+                  background: "var(--bg2)", border: "2px solid var(--border)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: avatarBusy ? "wait" : "pointer",
+                  opacity: avatarBusy ? 0.5 : 1,
+                  transition: "opacity 0.15s, border-color 0.15s",
+                }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 17, color: "var(--text2)" }}>
+                  {avatarBusy ? "hourglass_top" : "photo_camera"}
+                </span>
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 20, flexWrap: "wrap" }}>
+              <Button variant="ghost" size="sm" disabled={avatarBusy}
+                onClick={() => fileRef.current?.click()}>
+                {user.avatar_url ? "Заменить фото" : "Загрузить фото"}
+              </Button>
+              {user.avatar_url && (
+                <Button variant="danger" size="sm" disabled={avatarBusy}
+                  onClick={() => setConfirmRemoveAvatar(true)}>
+                  Удалить
+                </Button>
+              )}
+              <span style={{ fontSize: 11, color: "var(--text3)" }}>
+                JPEG, PNG, WebP · до {MAX_AVATAR_MB} МБ
+              </span>
             </div>
 
             <div style={{ marginBottom: 20 }}>
@@ -281,7 +363,7 @@ export default function ProfilePage() {
 
             <div>
               <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text3)", marginBottom: 12 }}>
-                Цвет аватара
+                Цвет аватара {user.avatar_url && "(используется без фото)"}
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 {COLORS.map((c) => (
@@ -344,6 +426,16 @@ export default function ProfilePage() {
         </div>
 
         <ApiKeysSection />
+
+        <ConfirmModal
+          open={confirmRemoveAvatar}
+          title="Удалить фото профиля"
+          message="Фото будет удалено. Вместо него везде появятся инициалы и выбранный цвет."
+          confirmLabel="Удалить"
+          variant="danger"
+          onConfirm={async () => { setConfirmRemoveAvatar(false); await removeAvatar(); }}
+          onCancel={() => setConfirmRemoveAvatar(false)}
+        />
 
         <style jsx>{`
           @media (max-width: 700px) {

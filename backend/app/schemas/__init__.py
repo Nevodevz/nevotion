@@ -3,7 +3,7 @@ from typing import Optional, Any
 
 from pydantic import BaseModel, EmailStr, ConfigDict
 
-from app.models import Role, ProjectStatus, Priority
+from app.models import Role, ProjectStatus, Priority, TaskKind
 
 
 # ---------- Auth ----------
@@ -18,6 +18,8 @@ class UserBase(BaseModel):
     email: EmailStr
     position: str = "Сотрудник"
     avatar_color: str = "indigo"
+    # Empty string → clients fall back to initials + avatar_color.
+    avatar_url: str = ""
 
 
 class UserCreate(UserBase):
@@ -154,6 +156,11 @@ class TaskBase(BaseModel):
     requester_id: Optional[int] = None
     assignee_ids: list[int] = []
     task_type: str = ""
+    # Structured card type — separate from the free-text `task_type` above.
+    kind: TaskKind = TaskKind.task
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    location: str = ""
 
 
 class TaskCreate(TaskBase):
@@ -173,6 +180,10 @@ class TaskUpdate(BaseModel):
     requester_id: Optional[int] = None
     assignee_ids: Optional[list[int]] = None
     task_type: Optional[str] = None
+    kind: Optional[TaskKind] = None
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    location: Optional[str] = None
 
 
 class TaskMove(BaseModel):
@@ -189,6 +200,15 @@ class TaskOut(TaskBase):
     owner: Optional[UserOut] = None
     requester: Optional[UserOut] = None
     created_at: datetime
+
+
+class BoardTasksOut(BaseModel):
+    """Move result: the whole affected board slice, already normalised.
+
+    Returning every touched task lets the client replace its optimistic state
+    with the server's authoritative ordering in one round-trip.
+    """
+    tasks: list[TaskOut]
 
 
 class BoardOut(BaseModel):
