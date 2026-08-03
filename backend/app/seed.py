@@ -576,7 +576,7 @@ def seed_nevolabs():
             atif = User(
                 name="Атиф",
                 email="abdulatif.works@gmail.com",
-                password_hash=hash_password(STAFF_PW),
+                password_hash=hash_password(_initial_user_password()),
                 role=Role.staff,
                 position="Легенда",
                 is_founder=False,
