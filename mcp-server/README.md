@@ -12,7 +12,7 @@ connector** по URL — без доступа к репозиторию и бе
 Наружу публикуется через nginx по пути `/mcp` на основном домене:
 
 ```
-https://nevocean.nevoai.kg/mcp
+https://nevocean.anti-flow.com/mcp
 ```
 
 nginx проксирует `/mcp` на `mcp:9000` с отключённой буферизацией (стриминг).
@@ -43,7 +43,7 @@ nginx проксирует `/mcp` на `mcp:9000` с отключённой бу
 1. Войдите в NevoOcean → **Профиль** → раздел **API-ключи (для Claude)**.
 2. Нажмите **Создать ключ**, скопируйте его — он показывается один раз.
 3. В Claude: **Settings → Connectors → Add custom connector**.
-4. Вставьте URL: `https://nevocean.nevoai.kg/mcp`.
+4. Вставьте URL: `https://nevocean.anti-flow.com/mcp`.
 5. В поле авторизации коннектора вставьте свой API-ключ.
 6. Сохраните — инструменты NevoOcean появятся в Claude автоматически.
 

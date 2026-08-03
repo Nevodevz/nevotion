@@ -90,7 +90,7 @@ export default function LoginPage() {
         </button>
 
         <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 16, textAlign: "center" }}>
-          Демо: beka@nevodevs.kg / admin123
+          Данные для входа выдаёт администратор NevoOcean
         </div>
       </div>
 

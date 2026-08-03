@@ -20,11 +20,11 @@ echo "[entrypoint] Database is up."
 
 # Run Alembic migrations
 echo "[entrypoint] Running migrations..."
-alembic upgrade head || echo "[entrypoint] WARNING: alembic failed, falling back to create_all via app startup"
+alembic upgrade head
 
 # Seed (idempotent — skips if data exists)
 echo "[entrypoint] Seeding (idempotent)..."
-python -m app.seed || echo "[entrypoint] Seed skipped or failed (likely already seeded)"
+python -m app.seed
 
 # Start server
 echo "[entrypoint] Starting server..."

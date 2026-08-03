@@ -23,7 +23,7 @@ function ApiKeysSection() {
   const [createdKey, setCreatedKey] = useState<ApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
-  const mcpUrl = typeof window !== "undefined" ? `${window.location.origin}/mcp` : "https://nevocean.nevoai.kg/mcp";
+  const mcpUrl = typeof window !== "undefined" ? `${window.location.origin}/mcp` : "https://nevocean.anti-flow.com/mcp";
 
   async function load() {
     try {

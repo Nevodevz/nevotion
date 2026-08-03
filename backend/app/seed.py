@@ -1,4 +1,5 @@
 """Seed NevoDevs database. Run: python -m app.seed"""
+import os
 from datetime import date, timedelta, datetime, timezone
 
 from app.core.database import SessionLocal, engine, Base
@@ -77,7 +78,14 @@ def seed_lookups():
         db.commit()
     finally:
         db.close()
-STAFF_PW = "Nevo2026!"
+
+def _initial_user_password() -> str:
+    password = os.getenv("INITIAL_USER_PASSWORD")
+    if password:
+        return password
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        raise RuntimeError("INITIAL_USER_PASSWORD must be set in production")
+    return "Nevo2026!"
 
 
 def make_board(db, name, kind, owner_id=None, department_id=None, cols=None):
@@ -96,6 +104,8 @@ def seed():
         print("База уже заполнена — пропускаю.")
         db.close(); return
 
+    initial_password = _initial_user_password()
+
     # ===== Departments =====
     depts = {
         "about":    Department(name="О компании",       slug="about",    icon="business",        kind="about"),
@@ -111,12 +121,12 @@ def seed():
     db.flush()
 
     # ===== Users =====
-    # All start with STAFF_PW. Admins also use STAFF_PW — easier for first-login.
+    # Every seeded user receives the deployment-provided one-time password.
     # last_seen=None for everyone (nobody has logged in yet)
     def U(name, email, position, color, founder=False, admin=False):
         return User(
             name=name, email=email,
-            password_hash=hash_password(STAFF_PW),
+            password_hash=hash_password(initial_password),
             role=Role.admin if admin else Role.staff,
             position=position, is_founder=founder,
             avatar_color=color, is_active=True, last_seen=None,
@@ -274,7 +284,7 @@ def seed():
     print()
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("  АККАУНТЫ ДЛЯ КОМАНДЫ")
-    print("  Стартовый пароль для всех: Nevo2026!")
+    print("  Стартовый пароль задан через INITIAL_USER_PASSWORD.")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     accounts = [
         ("Бека",     "beka@nevodevs.kg",     "Руководитель"),
