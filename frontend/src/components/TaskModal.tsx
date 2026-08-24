@@ -39,7 +39,7 @@ export function TaskModal({
 
   const [form, setForm] = useState<any>({
     title: "", tag: "Задача", tag_color: "indigo", priority: "med",
-    due_date: "", column_id: null, owner_id: "",
+    start_date: "", due_date: "", column_id: null, owner_id: "",
     requester_id: "", assignee_ids: [] as number[], task_type: "",
     kind: "task" as TaskKind, start_at: "", end_at: "", location: "",
   });
@@ -54,7 +54,7 @@ export function TaskModal({
     if (task) {
       newForm = {
         title: task.title, description: task.description || '', tag: task.tag, tag_color: task.tag_color, priority: task.priority,
-        due_date: task.due_date ?? "", column_id: task.column_id,
+        start_date: task.start_date ?? "", due_date: task.due_date ?? "", column_id: task.column_id,
         owner_id: task.owner_id ? String(task.owner_id) : "",
         requester_id: task.requester_id ? String(task.requester_id) : "",
         assignee_ids: task.assignee_ids ?? [], task_type: task.task_type ?? "",
@@ -65,7 +65,7 @@ export function TaskModal({
       };
     } else {
       newForm = {
-        title: "", description: "", tag: "Задача", tag_color: "indigo", priority: "med", due_date: "",
+        title: "", description: "", tag: "Задача", tag_color: "indigo", priority: "med", start_date: "", due_date: "",
         column_id: defaultColumnId ?? (cols[0]?.id ?? null),
         owner_id: lockOwnerId ? String(lockOwnerId) : (isAdmin || isShared ? "" : String(user?.id ?? "")),
         requester_id: isBackendQueue ? String(user?.id ?? "") : "",
@@ -107,7 +107,7 @@ export function TaskModal({
     try {
       const payload: any = {
         title: form.title, description: form.description, tag: form.tag, tag_color: form.tag_color, priority: form.priority,
-        due_date: form.due_date || null, column_id: form.column_id,
+        start_date: form.start_date || null, due_date: form.due_date || null, column_id: form.column_id,
         owner_id: form.owner_id ? Number(form.owner_id) : null,
         task_type: form.task_type,
         requester_id: form.requester_id ? Number(form.requester_id) : null,
@@ -285,17 +285,31 @@ export function TaskModal({
               })}
             </div>
           </div>
-          <div className="field">
-            <label className="field-label">Срок</label>
-            <input className="field-input" type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="field">
+              <label className="field-label">Начало</label>
+              <input className="field-input" type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            </div>
+            <div className="field">
+              <label className="field-label">Срок</label>
+              <input className="field-input" type="date" value={form.due_date} min={form.start_date || undefined} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+            </div>
           </div>
         </>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div className="field">
-            <label className="field-label">Срок</label>
-            <input className="field-input" type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
-          </div>
+        <>
+          {form.kind !== "meeting" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="field">
+                <label className="field-label">Начало</label>
+                <input className="field-input" type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+              </div>
+              <div className="field">
+                <label className="field-label">Срок</label>
+                <input className="field-input" type="date" value={form.due_date} min={form.start_date || undefined} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+              </div>
+            </div>
+          )}
           <div className="field">
             <label className="field-label">Исполнитель</label>
             <select className="field-select" value={form.owner_id} disabled={ownerLocked} style={{ opacity: ownerLocked ? 0.6 : 1 }}
@@ -304,7 +318,7 @@ export function TaskModal({
               {users.filter((u) => u.position !== "Руководитель").map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
-        </div>
+        </>
       )}
 
       {task && (

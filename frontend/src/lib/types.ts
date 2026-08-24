@@ -143,6 +143,38 @@ export interface Board {
   columns: BoardColumn[];
 }
 
+export interface BoardShareStatus {
+  active: boolean;
+  token_prefix: string | null;
+  created_at: string | null;
+}
+
+export interface BoardShareCreated {
+  token: string;
+  public_path: string;
+  created_at: string;
+}
+
+export interface PublicTask {
+  id: number;
+  title: string;
+  description: string;
+  tag: string;
+  tag_color: string;
+  priority: Priority;
+  start_date: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  position: number;
+  column_id: number | null;
+}
+
+export interface PublicBoard {
+  name: string;
+  columns: BoardColumn[];
+  tasks: PublicTask[];
+}
+
 /**
  * Structured card type on personal boards. Deliberately separate from the
  * free-text `task_type`, which the backend queue uses for "API"/"Деплой".
@@ -161,6 +193,7 @@ export interface Task {
   tag: string;
   tag_color: string;
   priority: Priority;
+  start_date: string | null;
   due_date: string | null;
   completed_at: string | null;
   position: number;

@@ -19,6 +19,11 @@ def _validate_column(db: Session, column_id: int | None, board_id: int) -> None:
     if not col or col.board_id != board_id:
         raise HTTPException(400, "Колонка не принадлежит этой доске")
 
+
+def _validate_schedule(start_date: date | None, due_date: date | None) -> None:
+    if start_date and due_date and start_date > due_date:
+        raise HTTPException(422, "Дата начала не может быть позже срока")
+
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
@@ -75,6 +80,19 @@ def list_tasks(
     return q.order_by(Task.position, Task.id).all()
 
 
+@router.get("/{task_id}", response_model=TaskOut)
+def get_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    task = _load(db, task_id)
+    board = db.get(Board, task.board_id)
+    if not board or not _can_view_board(user, board, db):
+        raise HTTPException(403, "Нет доступа")
+    return task
+
+
 @router.post("", response_model=TaskOut, status_code=201)
 def create_task(payload: TaskCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     board = db.get(Board, payload.board_id)
@@ -85,6 +103,7 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db), user: User =
 
     data = payload.model_dump()
     _validate_column(db, data.get("column_id"), board.id)
+    _validate_schedule(data.get("start_date"), data.get("due_date"))
     # personal boards: staff can only create their own tasks
     if board.kind == "personal" and user.role != Role.admin:
         data["owner_id"] = board.owner_id
@@ -123,6 +142,10 @@ def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)
     updates = payload.model_dump(exclude_unset=True)
     if "column_id" in updates:
         _validate_column(db, updates["column_id"], task.board_id)
+    _validate_schedule(
+        updates.get("start_date", task.start_date),
+        updates.get("due_date", task.due_date),
+    )
     for f, v in updates.items():
         setattr(task, f, v)
     if task.kind == TaskKind.meeting and not task.start_at:

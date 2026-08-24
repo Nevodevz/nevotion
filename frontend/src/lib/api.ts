@@ -1,6 +1,7 @@
 import type {
   User, UserWithStats, Project, Task, Department, Board, BoardColumn,
   ProjectStatus, ColumnDef, SalesRecord, MarketingRecord,
+  BoardShareStatus, BoardShareCreated, PublicBoard,
 } from "./types";
 
 const TOKEN_KEY = "nevodevs_token";
@@ -22,7 +23,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, { ...options, headers });
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
+    // Public share pages must stay usable even if this browser happens to have
+    // an expired employee token from an earlier NevOcean session.
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/share/")) {
+      window.location.href = "/login";
+    }
     throw new Error("Unauthorized");
   }
   if (!res.ok) {
@@ -119,6 +124,11 @@ export const api = {
   getPersonalBoard: (userId: number) => request<Board>(`/boards/personal/${userId}`),
   getBoard: (id: number) => request<Board>(`/boards/${id}`),
   boardsForDepartment: (deptId: number) => request<Board[]>(`/boards/by-department/${deptId}`),
+  getBoardShare: (boardId: number) => request<BoardShareStatus>(`/boards/${boardId}/share`),
+  createBoardShare: (boardId: number) =>
+    request<BoardShareCreated>(`/boards/${boardId}/share`, { method: "POST" }),
+  revokeBoardShare: (boardId: number) =>
+    request<void>(`/boards/${boardId}/share`, { method: "DELETE" }),
   addColumn: (boardId: number, data: { name: string; color?: string; is_done?: boolean }) =>
     request<BoardColumn>(`/boards/${boardId}/columns`, { method: "POST", body: JSON.stringify(data) }),
   updateColumn: (colId: number, data: any) => request<BoardColumn>(`/boards/columns/${colId}`, { method: "PATCH", body: JSON.stringify(data) }),
@@ -199,6 +209,19 @@ export const api = {
   reorderColumn: (colId: number, newPosition: number) =>
     request<BoardColumn>(`/boards/columns/${colId}/position?new_position=${newPosition}`, { method: "PATCH" }),
 };
+
+/** Public links never send the employee JWT and never redirect to /login. */
+export async function getPublicBoard(token: string): Promise<PublicBoard> {
+  const res = await fetch("/api/public/boards/view", {
+    cache: "no-store",
+    headers: { "X-Board-Share-Token": token },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Ссылка недействительна" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
 
 // search
 export const searchApi = {

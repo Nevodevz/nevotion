@@ -109,6 +109,33 @@ class Board(Base):
         back_populates="board", cascade="all, delete-orphan", order_by="BoardColumn.position"
     )
     tasks: Mapped[list["Task"]] = relationship(back_populates="board", cascade="all, delete-orphan")
+    shares: Mapped[list["BoardShare"]] = relationship(
+        back_populates="board", cascade="all, delete-orphan"
+    )
+
+
+class BoardShare(Base):
+    """Revocable, read-only public access to a board.
+
+    Only a SHA-256 digest is persisted.  The plaintext token is returned once
+    when the link is created, exactly like an API key.
+    """
+    __tablename__ = "board_shares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    board_id: Mapped[int] = mapped_column(
+        ForeignKey("boards.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    token_prefix: Mapped[str] = mapped_column(String(12), nullable=False)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    board: Mapped["Board"] = relationship(back_populates="shares")
+    creator: Mapped["User"] = relationship(foreign_keys=[created_by])
 
 
 class BoardColumn(Base):
@@ -143,6 +170,7 @@ class Task(Base):
     tag: Mapped[str] = mapped_column(String(60), default="Задача")  # free-text editable tag
     tag_color: Mapped[str] = mapped_column(String(20), default="indigo")
     priority: Mapped[Priority] = mapped_column(Enum(Priority), default=Priority.med)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     completed_at: Mapped[date | None] = mapped_column(Date, nullable=True)  # автозаполнение при "Готово"
     position: Mapped[int] = mapped_column(Integer, default=0)

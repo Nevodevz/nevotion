@@ -149,6 +149,7 @@ class TaskBase(BaseModel):
     tag: str = "Задача"
     tag_color: str = "indigo"
     priority: Priority = Priority.med
+    start_date: Optional[date] = None
     due_date: Optional[date] = None
     column_id: Optional[int] = None
     owner_id: Optional[int] = None
@@ -173,6 +174,7 @@ class TaskUpdate(BaseModel):
     tag: Optional[str] = None
     tag_color: Optional[str] = None
     priority: Optional[Priority] = None
+    start_date: Optional[date] = None
     due_date: Optional[date] = None
     column_id: Optional[int] = None
     owner_id: Optional[int] = None
@@ -219,6 +221,40 @@ class BoardOut(BaseModel):
     owner_id: Optional[int] = None
     department_id: Optional[int] = None
     columns: list[BoardColumnOut] = []
+
+
+class BoardShareStatus(BaseModel):
+    active: bool
+    token_prefix: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class BoardShareCreated(BaseModel):
+    token: str
+    public_path: str
+    created_at: datetime
+
+
+class PublicTaskOut(BaseModel):
+    """Deliberately limited task shape exposed by an unguessable public link."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    description: str
+    tag: str
+    tag_color: str
+    priority: Priority
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
+    completed_at: Optional[date] = None
+    position: int
+    column_id: Optional[int] = None
+
+
+class PublicBoardOut(BaseModel):
+    name: str
+    columns: list[BoardColumnOut]
+    tasks: list[PublicTaskOut]
 
 
 # ---------- Sales ----------

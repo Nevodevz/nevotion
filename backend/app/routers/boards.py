@@ -1,19 +1,26 @@
+import hashlib
+import secrets
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session, joinedload
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.models import (
-    Board, BoardColumn, Task, User, Role, Department, LabProject, LabProjectMember,
+    Board, BoardColumn, BoardShare, Task, User, Role, Department, LabProject, LabProjectMember,
 )
 from app.schemas import (
     BoardOut, BoardColumnOut, BoardColumnCreate, BoardColumnUpdate,
     TaskOut, TaskCreate, TaskUpdate, TaskMove,
+    BoardShareStatus, BoardShareCreated, PublicBoardOut,
 )
 
 router = APIRouter(prefix="/api/boards", tags=["boards"])
+public_router = APIRouter(prefix="/api/public/boards", tags=["public-boards"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 DEFAULT_COLUMNS = [
@@ -57,6 +64,14 @@ def _can_view_board(user: User, board: Board, db: Session | None = None) -> bool
     if board.kind == "founder":
         return user.is_founder
     if board.kind == "lab_project":
+        lab_proj = None
+        if db is not None:
+            lab_proj = db.query(LabProject).filter(LabProject.board_id == board.id).first()
+            # Archiving is the domain-level delete operation for NevoLabs.
+            # Its board remains in the database for recovery, but disappears
+            # from normal board discovery and cannot be opened directly.
+            if lab_proj and lab_proj.is_archived:
+                return False
         if db is None:
             return user.is_founder or user.role == Role.admin
         if user.is_founder or user.role == Role.admin:
@@ -64,7 +79,6 @@ def _can_view_board(user: User, board: Board, db: Session | None = None) -> bool
         nevolabs = db.query(Department).filter(Department.slug == "nevolabs").first()
         if nevolabs and any(m.id == user.id for m in nevolabs.members):
             return True
-        lab_proj = db.query(LabProject).filter(LabProject.board_id == board.id).first()
         if lab_proj:
             return db.query(LabProjectMember).filter(
                 LabProjectMember.lab_project_id == lab_proj.id,
@@ -79,6 +93,17 @@ def _can_view_board(user: User, board: Board, db: Session | None = None) -> bool
 
 
 # ---------- Boards ----------
+@router.get("", response_model=list[BoardOut])
+def list_boards(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Return every board the current user can see.
+
+    This is the canonical discovery endpoint for UI and MCP clients.  Older
+    clients may keep using the personal/department endpoints.
+    """
+    boards = db.query(Board).order_by(Board.name, Board.id).all()
+    return [board for board in boards if _can_view_board(user, board, db)]
+
+
 @router.get("/personal/{user_id}", response_model=BoardOut)
 def get_personal_board(user_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return ensure_personal_board(db, user_id)
@@ -98,6 +123,133 @@ def get_board(board_id: int, db: Session = Depends(get_db), user: User = Depends
     if not _can_view_board(user, board, db):
         raise HTTPException(403, "Нет доступа")
     return board
+
+
+# ---------- Public read-only sharing ----------
+def _share_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _active_share(db: Session, board_id: int) -> BoardShare | None:
+    return (
+        db.query(BoardShare)
+        .filter(BoardShare.board_id == board_id, BoardShare.revoked == False)
+        .order_by(BoardShare.created_at.desc(), BoardShare.id.desc())
+        .first()
+    )
+
+
+def _shareable_board(db: Session, board_id: int, user: User) -> Board:
+    board = db.get(Board, board_id)
+    if not board:
+        raise HTTPException(404, "Доска не найдена")
+    if not _can_edit_board(user, board, db):
+        raise HTTPException(403, "Нет прав на публикацию доски")
+    return board
+
+
+@router.get("/{board_id}/share", response_model=BoardShareStatus)
+def get_board_share(
+    board_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _shareable_board(db, board_id, user)
+    share = _active_share(db, board_id)
+    if not share:
+        return BoardShareStatus(active=False)
+    return BoardShareStatus(
+        active=True,
+        token_prefix=share.token_prefix,
+        created_at=share.created_at,
+    )
+
+
+@router.post("/{board_id}/share", response_model=BoardShareCreated, status_code=201)
+def create_board_share(
+    board_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Rotate a board's public link and return the new plaintext token once."""
+    _shareable_board(db, board_id, user)
+    db.query(BoardShare).filter(
+        BoardShare.board_id == board_id,
+        BoardShare.revoked == False,
+    ).update({BoardShare.revoked: True}, synchronize_session=False)
+
+    token = f"nvs_{secrets.token_urlsafe(32)}"
+    share = BoardShare(
+        board_id=board_id,
+        token_hash=_share_hash(token),
+        token_prefix=token[:12],
+        created_by=user.id,
+    )
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+    return BoardShareCreated(
+        token=token,
+        public_path=f"/share/{token}",
+        created_at=share.created_at,
+    )
+
+
+@router.delete("/{board_id}/share", status_code=204)
+def revoke_board_share(
+    board_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _shareable_board(db, board_id, user)
+    db.query(BoardShare).filter(
+        BoardShare.board_id == board_id,
+        BoardShare.revoked == False,
+    ).update({BoardShare.revoked: True}, synchronize_session=False)
+    db.commit()
+
+
+@public_router.get("/view", response_model=PublicBoardOut)
+@limiter.limit("60/minute")
+def public_board(
+    request: Request,
+    response: Response,
+    token: str | None = Header(None, alias="X-Board-Share-Token"),
+    db: Session = Depends(get_db),
+):
+    """Read-only board snapshot; authentication is the unguessable share token."""
+    if not token:
+        raise HTTPException(404, "Ссылка недействительна или отозвана")
+    share = (
+        db.query(BoardShare)
+        .filter(
+            BoardShare.token_hash == _share_hash(token),
+            BoardShare.revoked == False,
+        )
+        .first()
+    )
+    if not share:
+        raise HTTPException(404, "Ссылка недействительна или отозвана")
+
+    board = (
+        db.query(Board)
+        .options(joinedload(Board.columns), joinedload(Board.tasks))
+        .filter(Board.id == share.board_id)
+        .first()
+    )
+    if not board:
+        raise HTTPException(404, "Ссылка недействительна или отозвана")
+    if board.kind == "lab_project":
+        project = db.query(LabProject).filter(LabProject.board_id == board.id).first()
+        if project and project.is_archived:
+            raise HTTPException(404, "Ссылка недействительна или отозвана")
+
+    response.headers["Cache-Control"] = "no-store"
+    return PublicBoardOut(
+        name=board.name,
+        columns=sorted(board.columns, key=lambda column: (column.position, column.id)),
+        tasks=sorted(board.tasks, key=lambda task: (task.position, task.id)),
+    )
 
 
 # ---------- Columns ----------

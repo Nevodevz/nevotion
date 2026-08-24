@@ -44,6 +44,8 @@ services:
       - backend
     environment:
       BACKEND_API_URL: http://backend:8000/api
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-nevocean.anti-flow.com,localhost:9000,127.0.0.1:9000}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-https://nevocean.anti-flow.com}
     expose:
       - "9000"
 

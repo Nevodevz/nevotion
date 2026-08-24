@@ -1,6 +1,8 @@
 # NevoDevs Workspace
 
-Внутренний инструмент команды NevoDevs — задачи (канбан), реестр ботов (Server List), команда с личными трекерами. Роли: **админ** (видит всё, двигает любые задачи) и **сотрудник** (двигает только свои).
+Рабочее пространство команды NevoDevs: задачи в Kanban/Gantt, публичные read-only
+доски для клиентов, реестр проектов, CRM и личные трекеры. Встроенный remote MCP
+даёт Codex, Claude, Gemini и другим AI-клиентам доступ в рамках прав API-ключа.
 
 ## Стек
 
@@ -8,6 +10,7 @@
 - **Бэкенд:** FastAPI + SQLAlchemy 2.0 + JWT-авторизация
 - **Фронтенд:** Next.js 14 (App Router) + dnd-kit (drag & drop)
 - **Оркестрация:** Docker Compose (postgres + backend + frontend + nginx)
+- **AI-интеграция:** MCP Python SDK 2.x, Streamable HTTP (`/mcp`)
 
 ---
 
@@ -61,6 +64,7 @@ nevodevs/
 │       ├── models/         # SQLAlchemy: User, Server, Task, Department
 │       ├── schemas/        # Pydantic-схемы
 │       └── routers/        # auth, users, servers, tasks, departments
+├── mcp-server/             # универсальный remote MCP для AI-клиентов
 └── frontend/
     ├── Dockerfile
     ├── package.json
@@ -142,17 +146,21 @@ cat backup.sql | docker compose exec -T db psql -U nevodevs nevodevs
 | GET | `/api/tasks` | авторизованные (фильтр: owner_id для личного трекера) |
 | POST | `/api/tasks` | авторизованные |
 | PATCH | `/api/tasks/{id}/move` | владелец или admin |
+| POST/DELETE | `/api/boards/{id}/share` | редактор доски; создать/отозвать публичную ссылку |
+| GET | `/api/public/boards/view` | публичный read-only доступ по capability-заголовку |
 | GET | `/api/departments` | авторизованные (скрытые — только admin) |
+| POST | `/mcp` | Streamable HTTP MCP; персональный `nvo_...` API-ключ |
 
 ---
 
 ## Статус тестирования
 
-- ✅ Бэкенд протестирован end-to-end (авторизация, права, подсчёты, фильтры)
+- ✅ Бэкенд: 100 тестов (включая публичные ссылки и CRUD NevoLabs-досок)
 - ✅ Фронтенд собирается без ошибок (все роуты, standalone-сборка)
+- ✅ MCP: 24 инструмента; protocol-тесты покрывают discovery, CRUD-routing, schemas, annotations и tool errors
 - ⚠️ Полный прогон на реальном Postgres делается при первом `docker compose up` — код БД-агностичен (SQLAlchemy), миграция на Postgres прозрачна
 
-> Для боевых миграций схемы в будущем подключите Alembic (зависимость уже в `requirements.txt`). Сейчас таблицы создаются автоматически при старте.
+Боевые миграции выполняются Alembic из backend entrypoint; актуальная head-миграция — `019`.
 
 ---
 

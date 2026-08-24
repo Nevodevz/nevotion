@@ -26,6 +26,8 @@ INITIAL_USER_PASSWORD=<случайный одноразовый пароль>
 ENVIRONMENT=production
 FRONTEND_URL=https://nevocean.anti-flow.com
 MEDIA_ROOT=/app/media
+MCP_ALLOWED_HOSTS=nevocean.anti-flow.com,localhost:9000,127.0.0.1:9000
+MCP_ALLOWED_ORIGINS=https://nevocean.anti-flow.com
 ```
 
 `INITIAL_USER_PASSWORD` используется только при первом заполнении пустой базы.
@@ -52,6 +54,7 @@ docker compose --env-file .env up -d --build
 docker compose --env-file .env ps
 docker compose --env-file .env exec backend alembic current
 curl -fsS https://nevocean.anti-flow.com/api/health
+docker compose --env-file .env exec mcp curl -fsS http://localhost:9000/healthz
 ```
 
 Миграции и идемпотентное начальное заполнение базы выполняются entrypoint-скриптом
