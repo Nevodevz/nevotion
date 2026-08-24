@@ -12,7 +12,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useApp } from "@/context/AppContext";
+import { useToast } from "@/context/ToastContext";
 import { api } from "@/lib/api";
+import { fmtDateTime } from "@/lib/format";
 import { Task, Board, BoardColumn, tagColorStyle } from "@/lib/types";
 import { Avatar } from "./Avatar";
 
@@ -45,18 +47,40 @@ function Card({ task, canMove, onClick, doneColIds }: {
   const isDone = task.column_id ? doneColIds.has(task.column_id) : false;
   const overdue = isOverdue(task.due_date) && !isDone;
   const showRequester = task.requester && task.requester.id !== task.owner_id;
+  const isMeeting = task.kind === "meeting";
 
   return (
     <div
       ref={setNodeRef}
-      className="kcard"
+      className={`kcard${isDragging ? " kcard-dragging" : ""}`}
       style={{ ...style, opacity: isDragging ? 0.35 : isDone ? 0.75 : 1 }}
-      onClick={onClick}
-      {...attributes}
-      {...(canMove ? listeners : {})}
+      // Opening happens on click; dragging is confined to the handle below, so a
+      // drag can never be mistaken for a click on the card.
+      onClick={() => { if (!isDragging) onClick(); }}
     >
       <div className="kcard-head">
+        {canMove ? (
+          <button
+            className="kcard-drag"
+            aria-label={`Перетащить «${task.title}»`}
+            title="Перетащите, чтобы переместить"
+            onClick={(e) => e.stopPropagation()}
+            {...attributes}
+            {...listeners}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>drag_indicator</span>
+          </button>
+        ) : (
+          <span className="kcard-drag kcard-drag-locked" title="Можно перемещать только свои задачи">
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock</span>
+          </span>
+        )}
         <span className="kcard-tag" style={{ background: tag.bg, color: tag.fg }}>{task.tag}</span>
+        {isMeeting && (
+          <span className="kcard-tag" style={{ background: "var(--orange-bg)", color: "var(--orange)" }}>
+            Встреча
+          </span>
+        )}
         <button className="kcard-more" onClick={(e) => { e.stopPropagation(); onClick(); }} title="Открыть">
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>more_horiz</span>
         </button>
@@ -68,6 +92,14 @@ function Card({ task, canMove, onClick, doneColIds }: {
         <div className="kcard-desc-wrap">
           <div className="kcard-desc">{task.description}</div>
           <div className="kcard-desc-fade" />
+        </div>
+      )}
+
+      {isMeeting && task.start_at && (
+        <div style={{ fontSize: 11, color: "var(--orange)", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13 }}>schedule</span>
+          {fmtDateTime(task.start_at)}
+          {task.location ? ` · ${task.location}` : ""}
         </div>
       )}
 
@@ -101,9 +133,8 @@ function Card({ task, canMove, onClick, doneColIds }: {
         )}
 
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-          {!canMove && <span className="material-symbols-outlined" style={{ fontSize: 13, color: "var(--text3)" }}>lock</span>}
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: PRIORITY_COLOR[task.priority], flexShrink: 0 }} />
-          {task.owner && <Avatar name={task.owner.name} color={task.owner.avatar_color} size={24} />}
+          {task.owner && <Avatar name={task.owner.name} color={task.owner.avatar_color} src={task.owner.avatar_url} size={24} />}
         </span>
       </div>
     </div>
@@ -193,13 +224,15 @@ export function KanbanBoard({ board, tasks: initialTasks, canEditColumns, onChan
   onAddColumn?: () => void;
 }) {
   const { user, isAdmin } = useApp();
+  const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
 
-  // Sync tasks when parent data changes (but not while dragging)
+  // Sync tasks when parent data changes (but not while dragging).
+  // Position is part of the signature so a reorder from elsewhere is picked up.
   if (activeId === null) {
-    const a = initialTasks.map((t) => `${t.id}:${t.column_id}`).join();
-    const b = tasks.map((t) => `${t.id}:${t.column_id}`).join();
+    const a = initialTasks.map((t) => `${t.id}:${t.column_id}:${t.position}`).join();
+    const b = tasks.map((t) => `${t.id}:${t.column_id}:${t.position}`).join();
     if (a !== b) setTasks(initialTasks);
   }
 
@@ -266,19 +299,21 @@ export function KanbanBoard({ board, tasks: initialTasks, canEditColumns, onChan
     let newColId: number;
     let targetPosition: number;
 
+    const sortedIn = (colId: number) =>
+      tasks
+        .filter((t) => t.column_id === colId && t.id !== taskId)
+        .sort((a, b) => a.position - b.position || a.id - b.id);
+
     if (typeof overId === "string" && overId.startsWith("colbody-")) {
-      // Dropped directly on column body (empty area)
+      // Dropped on empty column space → append to the end.
       newColId = Number(overId.slice(8));
-      const colTasks = tasks.filter((t) => t.column_id === newColId && t.id !== taskId)
-        .sort((a, b) => a.position - b.position);
-      targetPosition = colTasks.length;
+      targetPosition = sortedIn(newColId).length;
     } else if (typeof overId === "number") {
-      // Dropped on another task
+      // Dropped on another card → take that card's slot.
       const overTask = tasks.find((t) => t.id === overId);
       if (!overTask) return;
       newColId = overTask.column_id ?? (task.column_id ?? 0);
-      const colTasks = tasks.filter((t) => t.column_id === newColId && t.id !== taskId)
-        .sort((a, b) => a.position - b.position);
+      const colTasks = sortedIn(newColId);
       const overIdx = colTasks.findIndex((t) => t.id === overId);
       targetPosition = overIdx >= 0 ? overIdx : colTasks.length;
     } else {
@@ -286,14 +321,32 @@ export function KanbanBoard({ board, tasks: initialTasks, canEditColumns, onChan
     }
 
     if (!newColId) return;
+    if (newColId === task.column_id && targetPosition === task.position) return;
 
     const prev = tasks;
-    setTasks((ts) => ts.map((t) => (t.id === taskId ? { ...t, column_id: newColId } : t)));
+
+    // Optimistic update reflects BOTH the new column and the new ordering, so the
+    // board does not visibly re-shuffle when the server response arrives.
+    const reordered = sortedIn(newColId);
+    reordered.splice(targetPosition, 0, { ...task, column_id: newColId });
+    const positionById = new Map(reordered.map((t, idx) => [t.id, idx]));
+    setTasks((ts) =>
+      ts.map((t) => {
+        if (t.id === taskId) return { ...t, column_id: newColId, position: positionById.get(t.id) ?? 0 };
+        if (t.column_id === newColId) return { ...t, position: positionById.get(t.id) ?? t.position };
+        return t;
+      }),
+    );
+
     try {
-      await api.moveTask(taskId, newColId, targetPosition);
+      // The server returns every task in the affected columns, already normalised.
+      const { tasks: updated } = await api.moveTask(taskId, newColId, targetPosition);
+      const byId = new Map(updated.map((t) => [t.id, t]));
+      setTasks((ts) => ts.map((t) => byId.get(t.id) ?? t));
       onChange?.();
-    } catch {
+    } catch (e: unknown) {
       setTasks(prev);
+      toast((e as Error).message || "Не удалось переместить задачу", "error");
     }
   }
 
@@ -308,7 +361,9 @@ export function KanbanBoard({ board, tasks: initialTasks, canEditColumns, onChan
           <div style={{ display: "flex", gap: 14, minWidth: "max-content", alignItems: "flex-start" }}>
             {cols.map((col) => (
               <Column key={col.id} col={col}
-                tasks={tasks.filter((t) => t.column_id === col.id)}
+                tasks={tasks
+                  .filter((t) => t.column_id === col.id)
+                  .sort((a, b) => a.position - b.position || a.id - b.id)}
                 canMoveTask={canMoveTask}
                 onCardClick={(t) => onCardClick?.(t)}
                 onAdd={(c) => onAddTask?.(c)}
@@ -351,9 +406,18 @@ export function KanbanBoard({ board, tasks: initialTasks, canEditColumns, onChan
         .kcol-edit:hover { background: var(--bg2); color: var(--text); }
         .kcol-body { padding: 6px 10px; display: flex; flex-direction: column; gap: 9px; flex: 1; min-height: 80px; border-radius: 8px; transition: background 0.15s; }
         .kcol-drop { border: 1.5px dashed var(--primary); border-radius: 8px; padding: 18px; text-align: center; font-size: 12px; color: var(--primary); }
-        .kcard { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; cursor: grab; }
+        .kcard { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; transition: border-color 0.15s, box-shadow 0.15s; cursor: pointer; }
         .kcard:hover { border-color: var(--primary); box-shadow: 0 2px 12px rgba(70,72,212,0.08); }
-        .kcard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+        .kcard-dragging { cursor: grabbing; }
+        /* Dedicated drag handle: dragging is explicit, clicking opens the card. */
+        .kcard-drag { width: 22px; height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text3); border-radius: 5px; cursor: grab; touch-action: none; opacity: 0.55; transition: opacity 0.13s, background 0.13s, color 0.13s; }
+        .kcard:hover .kcard-drag { opacity: 1; }
+        .kcard-drag:hover { background: var(--bg3); color: var(--text); }
+        .kcard-drag:active { cursor: grabbing; }
+        .kcard-drag:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; opacity: 1; }
+        .kcard-drag-locked { cursor: not-allowed; opacity: 0.4; }
+        .kcard-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+        .kcard-head .kcard-more { margin-left: auto; }
         .kcard-tag { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 5px; }
         .kcard-more { width: 22px; height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text3); border-radius: 5px; cursor: pointer; }
         .kcard-more:hover { background: var(--bg3); color: var(--text); }

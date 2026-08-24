@@ -5,18 +5,55 @@ import { useParams, useRouter } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { Avatar } from "@/components/Avatar";
 import { BoardView } from "@/components/BoardView";
+import { CalendarView } from "@/components/CalendarView";
 import { api } from "@/lib/api";
+import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import type { UserWithStats, Board, Project, BotColor } from "@/lib/types";
 import { BOT_COLORS, BOT_SUB_STATUSES, STATUS_LABELS } from "@/lib/types";
 
 const COLOR_OPTIONS: BotColor[] = ["green", "yellow", "blue", "red"];
 
+type TrackerView = "board" | "calendar";
+
+/** «Доска» / «Календарь» switch, available to every user on their own page. */
+function ViewTabs({ view, onChange }: { view: TrackerView; onChange: (v: TrackerView) => void }) {
+  const tabs: { value: TrackerView; label: string; icon: string }[] = [
+    { value: "board", label: "Доска", icon: "view_kanban" },
+    { value: "calendar", label: "Календарь", icon: "calendar_month" },
+  ];
+  return (
+    <div role="tablist" aria-label="Представление"
+      style={{ display: "inline-flex", background: "var(--bg3)", borderRadius: 8, padding: 3, gap: 2 }}>
+      {tabs.map((t) => {
+        const active = view === t.value;
+        return (
+          <button key={t.value} role="tab" aria-selected={active} onClick={() => onChange(t.value)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "6px 14px",
+              borderRadius: 6, border: "none", cursor: "pointer", fontFamily: "inherit",
+              fontSize: 13, fontWeight: active ? 600 : 400,
+              background: active ? "var(--bg2)" : "transparent",
+              color: active ? "var(--text)" : "var(--text3)",
+              transition: "all 0.15s",
+            }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{t.icon}</span>
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function TrackerPage() {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
+  const { user: currentUser } = useApp();
   const userId = Number(params.id);
+  const [view, setView] = useState<TrackerView>("board");
+  const isOwnPage = currentUser?.id === userId;
 
   const [member, setMember] = useState<UserWithStats | null>(null);
   const [personalBoard, setPersonalBoard] = useState<Board | null>(null);
@@ -70,7 +107,7 @@ export default function TrackerPage() {
 
       {member && (
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-          <Avatar name={member.name} color={member.avatar_color} size={52} />
+          <Avatar name={member.name} color={member.avatar_color} src={member.avatar_url} size={52} />
           <div style={{ flex: 1 }}>
             <div className="page-h1" style={{ display: "flex", alignItems: "center" }}>
               {member.name}
@@ -83,6 +120,7 @@ export default function TrackerPage() {
             </div>
             <div className="page-desc">{member.position} · {member.total_bots} ботов · личные задачи</div>
           </div>
+          <ViewTabs view={view} onChange={setView} />
           {isPrompter && salary > 0 && (
             <div style={{ padding: "10px 18px", background: "var(--bg2)", borderRadius: 10, border: "1px solid var(--border)", textAlign: "right" }}>
               <div style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600, marginBottom: 3 }}>Зарплата</div>
@@ -94,8 +132,13 @@ export default function TrackerPage() {
         </div>
       )}
 
+      {/* Calendar view — own calendar by default; admins may view an employee's */}
+      {view === "calendar" && (
+        <CalendarView userId={userId} isOwnCalendar={isOwnPage} />
+      )}
+
       {/* Bots section for prompters */}
-      {isPrompter && bots.length > 0 && (
+      {view === "board" && isPrompter && bots.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text3)", marginBottom: 14 }}>
             Боты ({bots.length})
@@ -193,12 +236,12 @@ export default function TrackerPage() {
       )}
 
       {/* Personal board */}
-      {personalBoard && (
+      {view === "board" && personalBoard && (
         <BoardView boardId={personalBoard.id} lockOwnerId={userId} />
       )}
 
       {/* Backend queue tasks assigned to this user — shown as a real board with real columns */}
-      {isBackender && backendQueueBoard && (
+      {view === "board" && isBackender && backendQueueBoard && (
         <div style={{ marginTop: 32 }}>
           <div style={{ fontSize: 13, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text3)", marginBottom: 6 }}>
             Задачи с общей доски бэкенда

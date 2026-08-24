@@ -2,8 +2,8 @@ import calendar
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
@@ -13,7 +13,13 @@ from app.schemas import UserOut
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
+# Meetings have no explicit end time; duration drives where they sit on the
+# calendar's hour grid. 60 minutes is the safe fallback for legacy rows.
+DEFAULT_MEETING_MINUTES = 60
+
 # ---------- Schemas ----------
+# `notes` is the canonical storage for the user-facing «Комментарий» field —
+# deliberately not duplicated into a second column.
 class MeetingCreate(BaseModel):
     closer_id: int
     meeting_date: datetime
@@ -21,6 +27,8 @@ class MeetingCreate(BaseModel):
     client_name: str
     client_phone: str = ""
     notes: str = ""
+    duration_minutes: int = Field(DEFAULT_MEETING_MINUTES, ge=5, le=24 * 60)
+    lead_id: Optional[int] = None
     parent_id: Optional[int] = None
 
 class MeetingUpdate(BaseModel):
@@ -30,6 +38,7 @@ class MeetingUpdate(BaseModel):
     client_name: Optional[str] = None
     client_phone: Optional[str] = None
     notes: Optional[str] = None
+    duration_minutes: Optional[int] = Field(None, ge=5, le=24 * 60)
     status: Optional[MeetingStatus] = None
 
 class MeetingOut(BaseModel):
@@ -43,7 +52,9 @@ class MeetingOut(BaseModel):
     client_phone: str
     status: MeetingStatus
     notes: str
+    duration_minutes: int = DEFAULT_MEETING_MINUTES
     parent_id: Optional[int]
+    lead_id: Optional[int] = None
     created_at: datetime
     closer: Optional[UserOut] = None
     setter: Optional[UserOut] = None
@@ -78,14 +89,19 @@ def _load(db: Session, meeting_id: int) -> Meeting:
 # ---------- Routes ----------
 @router.get("", response_model=list[MeetingOut])
 def list_meetings(
+    response: Response,
     closer_id: Optional[int] = Query(None),
     setter_id: Optional[int] = Query(None),
+    status: Optional[MeetingStatus] = Query(None),
     year:  Optional[int] = Query(None),
     month: Optional[int] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to:   Optional[str] = Query(None),
     parent_only: bool = Query(True),   # default: skip sub-meetings in top-level list
-    limit: int = Query(50, le=200),
+    # A month can easily exceed the old 50-item cap, which silently truncated the
+    # calendar. The default now covers a full month and `X-Total-Count` lets a
+    # client detect when it still needs to page.
+    limit: int = Query(500, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -100,6 +116,8 @@ def list_meetings(
         q = q.filter(Meeting.closer_id == closer_id)
     if setter_id:
         q = q.filter(Meeting.setter_id == setter_id)
+    if status:
+        q = q.filter(Meeting.status == status)
     if year and month:
         # Filter by Bishkek-local month boundaries (UTC+6), converted to UTC,
         # so a meeting whose local date falls in this month isn't dropped
@@ -120,6 +138,7 @@ def list_meetings(
         q = q.filter(Meeting.meeting_date <= date_to)
     total = q.count()
     meetings = q.order_by(Meeting.meeting_date).offset(offset).limit(limit).all()
+    response.headers["X-Total-Count"] = str(total)
     return meetings
 
 
@@ -135,10 +154,12 @@ def create_meeting(
         closer_id=payload.closer_id, setter_id=user.id,
         meeting_date=payload.meeting_date, address=payload.address,
         client_name=payload.client_name, client_phone=payload.client_phone,
-        notes=payload.notes, parent_id=payload.parent_id,
+        notes=payload.notes, duration_minutes=payload.duration_minutes,
+        parent_id=payload.parent_id, lead_id=payload.lead_id,
         status=MeetingStatus.scheduled,
     )
-    db.add(m); db.commit()
+    db.add(m)
+    db.commit()
     return _load(db, m.id)
 
 

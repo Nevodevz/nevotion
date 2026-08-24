@@ -1,4 +1,5 @@
 """Seed NevoDevs database. Run: python -m app.seed"""
+import os
 from datetime import date, timedelta, datetime, timezone
 
 from app.core.database import SessionLocal, engine, Base
@@ -8,7 +9,7 @@ from app.models import (
     SalesRecord, MarketingRecord, Meeting, MeetingStatus,
     Role, ProjectStatus, Priority,
     LeadSource, Service, LeadStage, RejectReason, ExpenseCategory, Account,
-    Lead, LeadStageHistory, LeadActivity, LeadStatus,
+    Lead, LeadStageHistory, LeadActivity, LeadStatus, Deal,
     PayrollRule, FinanceTransaction, AdExpense, MonthlyPlan, DevPayrollConfig,
     LabProject, LabProjectMember,
 )
@@ -39,9 +40,10 @@ def seed_lookups():
             "CRM", "Автоматизация", "Другое",
         ])
 
+        # NOTE: «Демо-тест» is intentionally absent — it was retired in migration 018.
+        # Existing installs keep the row (archived) so history stays readable.
         stages = [
             ("Новый лид",        {}),
-            ("Демо-тест",        {}),
             ("Созвон",           {}),
             ("Встреча",          {}),
             ("Договор",          {}),
@@ -76,7 +78,14 @@ def seed_lookups():
         db.commit()
     finally:
         db.close()
-STAFF_PW = "Nevo2026!"
+
+def _initial_user_password() -> str:
+    password = os.getenv("INITIAL_USER_PASSWORD")
+    if password:
+        return password
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        raise RuntimeError("INITIAL_USER_PASSWORD must be set in production")
+    return "Nevo2026!"
 
 
 def make_board(db, name, kind, owner_id=None, department_id=None, cols=None):
@@ -95,6 +104,8 @@ def seed():
         print("База уже заполнена — пропускаю.")
         db.close(); return
 
+    initial_password = _initial_user_password()
+
     # ===== Departments =====
     depts = {
         "about":    Department(name="О компании",       slug="about",    icon="business",        kind="about"),
@@ -110,12 +121,12 @@ def seed():
     db.flush()
 
     # ===== Users =====
-    # All start with STAFF_PW. Admins also use STAFF_PW — easier for first-login.
+    # Every seeded user receives the deployment-provided one-time password.
     # last_seen=None for everyone (nobody has logged in yet)
     def U(name, email, position, color, founder=False, admin=False):
         return User(
             name=name, email=email,
-            password_hash=hash_password(STAFF_PW),
+            password_hash=hash_password(initial_password),
             role=Role.admin if admin else Role.staff,
             position=position, is_founder=founder,
             avatar_color=color, is_active=True, last_seen=None,
@@ -273,7 +284,7 @@ def seed():
     print()
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print("  АККАУНТЫ ДЛЯ КОМАНДЫ")
-    print("  Стартовый пароль для всех: Nevo2026!")
+    print("  Стартовый пароль задан через INITIAL_USER_PASSWORD.")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     accounts = [
         ("Бека",     "beka@nevodevs.kg",     "Руководитель"),
@@ -329,6 +340,13 @@ def seed_leads():
                     to_stage_id=stage_id, changed_by=setter_id, comment="Лид создан"))
                 db.add(LeadActivity(lead_id=lead.id, activity_type="created",
                     description="Лид создан", responsible_id=setter_id))
+            # Deal.amount is the canonical deal amount — seed it alongside the lead
+            # so demo data matches the production model.
+            if amount:
+                db.add(Deal(
+                    lead_id=lead.id, amount=amount, paid_amount=0, status="pending",
+                    setter_id=setter_id, closer_id=closer_id,
+                ))
             db.flush()
 
         add_lead("+996 700 111111", "Алибек Джумалиев", "Sushi Pro KG",
@@ -336,7 +354,7 @@ def seed_leads():
         add_lead("+996 555 222222", "Айгерим Токтосунова", "Beauty Studio",
                  "WhatsApp", "Автоматизация", "Созвон", "minai", None, 80000, "Хочет автоматизировать запись")
         add_lead("+996 777 333333", "Бакыт Малиев", "БакытСтрой",
-                 "Сарафан", "Сайт", "Демо-тест", "rahima", None, 120000)
+                 "Сарафан", "Сайт", "Созвон", "rahima", None, 120000)
         add_lead("+996 500 444444", "Жибек Асанова", "",
                  "Facebook", "AI чат-бот", "Договор", "minai", "marlen", 200000, "Согласовали условия")
         add_lead("+996 770 555555", "Нурлан Исаков", "Naryn Trade",
@@ -558,7 +576,7 @@ def seed_nevolabs():
             atif = User(
                 name="Атиф",
                 email="abdulatif.works@gmail.com",
-                password_hash=hash_password(STAFF_PW),
+                password_hash=hash_password(_initial_user_password()),
                 role=Role.staff,
                 position="Легенда",
                 is_founder=False,

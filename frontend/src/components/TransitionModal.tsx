@@ -36,7 +36,10 @@ function todayBishkek(): string {
 export interface CardLike {
   client_name: string;
   company_name?: string | null;
-  potential_amount: number;
+  /** Сумма сделки — canonical, comes from the deal. */
+  deal_amount?: number;
+  paid_amount?: number;
+  remaining_amount?: number;
   active_deal?: { amount: number } | null;
   closer_id?: number | null;
   closer?: { id: number; name: string } | null;
@@ -54,13 +57,15 @@ interface TransitionModalProps {
 }
 
 function initForm(kind: string, card: CardLike): Record<string, unknown> {
-  const dealAmount = card.active_deal?.amount || card.potential_amount || 0;
+  const dealAmount = card.deal_amount ?? card.active_deal?.amount ?? 0;
+  // Default the payment to what is still outstanding, not the whole deal.
+  const outstanding = card.remaining_amount ?? dealAmount;
   const closerId = card.closer_id ?? card.closer?.id ?? 0;
   const setterId = card.setter_id ?? card.setter?.id ?? 0;
   switch (kind) {
     case "won":
       return {
-        paid_amount: dealAmount,
+        paid_amount: outstanding,
         payment_date: todayBishkek(),
         payment_method: "",
         setter_id: setterId,
@@ -77,7 +82,7 @@ function initForm(kind: string, card: CardLike): Record<string, unknown> {
     case "waiting_payment":
       return { amount: dealAmount, expected_payment_date: "", responsible_id: 0 };
     case "meeting":
-      return { meeting_date: "", meeting_time: "12:00", address: "", closer_id: closerId };
+      return { meeting_date: "", meeting_time: "12:00", address: "", comment: "", closer_id: closerId };
     case "lost":
       return { reject_reason_id: 0, reject_comment: "", closer_id: closerId };
     default:
@@ -165,6 +170,15 @@ export function TransitionModal({
                 placeholder="Офис, Zoom..."
                 value={String(form.address ?? "")}
                 onChange={(e) => set("address", e.target.value)}
+              />
+            </FormField>
+            <FormField label="Комментарий">
+              <textarea
+                style={ta}
+                rows={2}
+                placeholder="Что обсудить, детали для клоузера…"
+                value={String(form.comment ?? "")}
+                onChange={(e) => set("comment", e.target.value)}
               />
             </FormField>
             <FormField label="Клоузер" required>
@@ -262,6 +276,20 @@ export function TransitionModal({
 
         {kind === "won" && (
           <>
+            {typeof card.remaining_amount === "number" && (
+              <div style={{
+                fontSize: 12, color: "var(--text2)", background: "var(--bg3)",
+                borderRadius: 8, padding: "8px 12px", marginBottom: 12, lineHeight: 1.6,
+              }}>
+                Сумма сделки: <b>{(card.deal_amount ?? 0).toLocaleString("ru-RU")} сом</b> ·
+                {" "}Оплачено: <b>{(card.paid_amount ?? 0).toLocaleString("ru-RU")} сом</b> ·
+                {" "}Остаток: <b>{card.remaining_amount.toLocaleString("ru-RU")} сом</b>
+                <div style={{ color: "var(--text3)", marginTop: 4 }}>
+                  Этап «Оплачено» станет активным только после полной оплаты.
+                  Частичная сумма будет сохранена в графике оплат.
+                </div>
+              </div>
+            )}
             <FormField label="Фактическая сумма оплаты" required>
               <Input
                 type="number"

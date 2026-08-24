@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import (
-    Board, BoardColumn, Department, LabProject, LabProjectMember, Role, User,
+    Board, BoardColumn, BoardShare, Department, LabProject, LabProjectMember,
+    Role, User,
 )
 from app.schemas import (
     LabProjectCreate, LabProjectMemberAdd, LabProjectOut, LabProjectUpdate,
@@ -60,6 +61,12 @@ def _load_project(project_id: int, db: Session) -> LabProject:
     return proj
 
 
+def _present_project(project: LabProject, user: User, db: Session) -> LabProject:
+    """Attach the computed permission flag expected by the response schema."""
+    project.user_can_manage = _can_view_project_board(user, project, db)
+    return project
+
+
 def _create_project_board(db: Session, project_name: str) -> Board:
     board = Board(name=project_name, kind="lab_project")
     db.add(board)
@@ -74,7 +81,7 @@ def _create_project_board(db: Session, project_name: str) -> Board:
 def list_lab_projects(
     include_archived: bool = Query(False),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     q = (
         db.query(LabProject)
@@ -85,7 +92,10 @@ def list_lab_projects(
     )
     if not include_archived:
         q = q.filter(LabProject.is_archived.is_(False))
-    return q.order_by(LabProject.created_at.desc()).all()
+    return [
+        _present_project(project, user, db)
+        for project in q.order_by(LabProject.created_at.desc()).all()
+    ]
 
 
 @router.get("/{project_id}", response_model=LabProjectOut)
@@ -95,8 +105,7 @@ def get_lab_project(
     user: User = Depends(get_current_user),
 ):
     project = _load_project(project_id, db)
-    project.user_can_manage = _can_view_project_board(user, project, db)
-    return project
+    return _present_project(project, user, db)
 
 
 @router.post("", response_model=LabProjectOut, status_code=201)
@@ -127,7 +136,7 @@ def create_lab_project(
             seen.add(uid)
 
     db.commit()
-    return _load_project(project.id, db)
+    return _present_project(_load_project(project.id, db), user, db)
 
 
 @router.patch("/{project_id}", response_model=LabProjectOut)
@@ -149,6 +158,13 @@ def update_lab_project(
     data = payload.model_dump(exclude_unset=True)
     member_ids = data.pop("member_ids", None)
 
+    # A NevoLabs project and its Kanban board are one domain object. Keep the
+    # names in lockstep so UI and MCP clients never discover conflicting names.
+    if "name" in data and project.board_id is not None:
+        board = db.get(Board, project.board_id)
+        if board:
+            board.name = data["name"]
+
     for field, value in data.items():
         setattr(project, field, value)
 
@@ -161,7 +177,7 @@ def update_lab_project(
                 seen.add(uid)
 
     db.commit()
-    return _load_project(project_id, db)
+    return _present_project(_load_project(project_id, db), user, db)
 
 
 @router.post("/{project_id}/archive", response_model=LabProjectOut)
@@ -178,8 +194,14 @@ def archive_lab_project(
         raise HTTPException(404, "Проект не найден")
 
     project.is_archived = True
+    if project.board_id is not None:
+        # An archived project must not retain a live unauthenticated share URL.
+        db.query(BoardShare).filter(
+            BoardShare.board_id == project.board_id,
+            BoardShare.revoked == False,
+        ).update({BoardShare.revoked: True}, synchronize_session=False)
     db.commit()
-    return _load_project(project_id, db)
+    return _present_project(_load_project(project_id, db), user, db)
 
 
 @router.post("/{project_id}/members", response_model=LabProjectOut)
@@ -204,7 +226,7 @@ def add_member(
         db.add(LabProjectMember(lab_project_id=project_id, user_id=payload.user_id))
         db.commit()
 
-    return _load_project(project_id, db)
+    return _present_project(_load_project(project_id, db), user, db)
 
 
 @router.delete("/{project_id}/members/{user_id}", response_model=LabProjectOut)
@@ -226,4 +248,4 @@ def remove_member(
         LabProjectMember.user_id == user_id,
     ).delete()
     db.commit()
-    return _load_project(project_id, db)
+    return _present_project(_load_project(project_id, db), user, db)

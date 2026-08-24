@@ -122,7 +122,7 @@ export default function StaffPage() {
               <tr key={u.id}>
                 <td>
                   <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <Avatar name={u.name} color={u.avatar_color} size={30} />
+                    <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={30} />
                     <span style={{ fontWeight: 500, color: "var(--text)" }}>{u.name}</span>
                     {u.is_founder && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 8, background: "rgba(249,115,22,0.1)", color: "#ea580c", fontWeight: 600 }}>Основатель</span>}
                   </span>
@@ -176,7 +176,7 @@ export default function StaffPage() {
                 <tr key={u.id} style={{ opacity: 0.7 }}>
                   <td>
                     <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Avatar name={u.name} color={u.avatar_color} size={28} />
+                      <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={28} />
                       <span style={{ color: "var(--text2)" }}>{u.name}</span>
                     </span>
                   </td>

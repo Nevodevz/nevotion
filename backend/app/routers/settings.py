@@ -38,6 +38,8 @@ class StageUpdate(BaseModel):
     is_lost: bool | None = None
     color: str | None = None
     position: int | None = None
+    # Archiving replaces deletion: leads and history keep referencing the stage.
+    is_archived: bool | None = None
 
 class AccountCreate(BaseModel):
     name: str
@@ -129,8 +131,20 @@ def reorder_service(id: int, new_position: int, db: Session = Depends(get_db), _
 # ── Lead Stages ───────────────────────────────────────────────────
 
 @router.get("/stages")
-def list_stages(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return [_serialize(r) for r in db.query(LeadStage).order_by(LeadStage.position).all()]
+def list_stages(
+    include_archived: bool = False,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Active stages by default.
+
+    Archived stages are excluded from every picker, form and funnel column; pass
+    `include_archived=true` (settings screens, history rendering) to see them.
+    """
+    q = db.query(LeadStage)
+    if not include_archived:
+        q = q.filter(LeadStage.is_archived == False)  # noqa: E712
+    return [_serialize(r) for r in q.order_by(LeadStage.position).all()]
 
 @router.post("/stages", status_code=201)
 def create_stage(body: StageCreate, db: Session = Depends(get_db), _=Depends(require_admin)):
@@ -145,12 +159,54 @@ def create_stage(body: StageCreate, db: Session = Depends(get_db), _=Depends(req
 def update_stage(id: int, body: StageUpdate, db: Session = Depends(get_db), _=Depends(require_admin)):
     r = db.get(LeadStage, id)
     if not r: raise HTTPException(404, "Not found")
-    for field in ("name", "norm_days", "is_won", "is_lost", "color", "position"):
+    for field in ("name", "norm_days", "is_won", "is_lost", "color", "position", "is_archived"):
         val = getattr(body, field)
         if val is not None:
             setattr(r, field, val)
     db.commit(); db.refresh(r)
     return _serialize(r)
+
+@router.post("/stages/{id}/archive")
+def archive_stage(id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+    """Retire a stage without deleting it.
+
+    Leads still sitting on it are moved to the first active non-final stage, and
+    each move is recorded in the lead's history so the trail stays readable.
+    """
+    from app.models import Lead, LeadStageHistory
+
+    stage = db.get(LeadStage, id)
+    if not stage:
+        raise HTTPException(404, "Not found")
+    if stage.is_archived:
+        return _serialize(stage)
+
+    target = (
+        db.query(LeadStage)
+        .filter(
+            LeadStage.id != id,
+            LeadStage.is_archived == False,  # noqa: E712
+            LeadStage.is_won == False,       # noqa: E712
+            LeadStage.is_lost == False,      # noqa: E712
+        )
+        .order_by(LeadStage.position)
+        .first()
+    )
+    if target is None:
+        raise HTTPException(422, "Нет активного этапа, куда перенести лиды")
+
+    for lead in db.query(Lead).filter(Lead.stage_id == id).all():
+        db.add(LeadStageHistory(
+            lead_id=lead.id, from_stage_id=id, to_stage_id=target.id,
+            changed_by=None,
+            comment=f"Системный перенос: этап «{stage.name}» архивирован",
+        ))
+        lead.stage_id = target.id
+
+    stage.is_archived = True
+    db.commit()
+    db.refresh(stage)
+    return _serialize(stage)
 
 @router.post("/stages/{id}/reorder")
 def reorder_stage(id: int, new_position: int, db: Session = Depends(get_db), _=Depends(require_admin)):

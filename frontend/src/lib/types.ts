@@ -22,6 +22,8 @@ export interface LeadStage {
   is_won: boolean;
   is_lost: boolean;
   color: string;
+  /** Archived stages stay readable in history but never appear in pickers. */
+  is_archived: boolean;
 }
 
 export interface RejectReason {
@@ -60,6 +62,8 @@ export interface User {
   email: string;
   position: string;
   avatar_color: string;
+  /** Uploaded photo path; empty string → fall back to initials + avatar_color. */
+  avatar_url: string;
   role: Role;
   is_founder: boolean;
   is_active: boolean;
@@ -139,6 +143,49 @@ export interface Board {
   columns: BoardColumn[];
 }
 
+export interface BoardShareStatus {
+  active: boolean;
+  token_prefix: string | null;
+  created_at: string | null;
+}
+
+export interface BoardShareCreated {
+  token: string;
+  public_path: string;
+  created_at: string;
+}
+
+export interface PublicTask {
+  id: number;
+  title: string;
+  description: string;
+  tag: string;
+  tag_color: string;
+  priority: Priority;
+  start_date: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  position: number;
+  column_id: number | null;
+}
+
+export interface PublicBoard {
+  name: string;
+  columns: BoardColumn[];
+  tasks: PublicTask[];
+}
+
+/**
+ * Structured card type on personal boards. Deliberately separate from the
+ * free-text `task_type`, which the backend queue uses for "API"/"Деплой".
+ */
+export type TaskKind = "task" | "meeting";
+
+export const TASK_KIND_OPTIONS: { value: TaskKind; label: string; icon: string }[] = [
+  { value: "task",    label: "Обычная задача", icon: "task_alt" },
+  { value: "meeting", label: "Встреча",        icon: "event" },
+];
+
 export interface Task {
   id: number;
   title: string;
@@ -146,6 +193,7 @@ export interface Task {
   tag: string;
   tag_color: string;
   priority: Priority;
+  start_date: string | null;
   due_date: string | null;
   completed_at: string | null;
   position: number;
@@ -157,6 +205,11 @@ export interface Task {
   requester: User | null;
   assignee_ids: number[];
   task_type: string;
+  kind: TaskKind;
+  /** Meeting-kind only: UTC start / optional end, plus address or link. */
+  start_at: string | null;
+  end_at: string | null;
+  location: string;
   created_at: string;
 }
 
@@ -267,7 +320,8 @@ export function tagColorStyle(color: string) {
 }
 
 // ===== Meetings =====
-export type MeetingStatus = "scheduled" | "closed" | "minus" | "push" | "rescheduled";
+export type MeetingStatus =
+  | "scheduled" | "closed" | "minus" | "push" | "rescheduled" | "not_held";
 
 export interface Meeting {
   id: number;
@@ -278,13 +332,29 @@ export interface Meeting {
   client_name: string;
   client_phone: string;
   status: MeetingStatus;
+  /** Canonical storage for the user-facing «Комментарий» field. */
   notes: string;
+  /** Drives where the meeting sits on the calendar's hour grid. */
+  duration_minutes: number;
   parent_id: number | null;
+  lead_id: number | null;
   created_at: string;
   closer: User | null;
   setter: User | null;
   sub_meetings: Meeting[];
 }
+
+/** Preset lengths offered when scheduling a meeting. */
+export const MEETING_DURATIONS: { value: number; label: string }[] = [
+  { value: 30, label: "30 минут" },
+  { value: 60, label: "1 час" },
+  { value: 90, label: "1,5 часа" },
+  { value: 120, label: "2 часа" },
+  { value: 180, label: "3 часа" },
+];
+
+/** Fallback for meetings created before durations existed. */
+export const DEFAULT_MEETING_MINUTES = 60;
 
 export const MEETING_STATUS: Record<MeetingStatus, { label: string; color: string; bg: string }> = {
   scheduled:  { label: "Запланирована", color: "var(--primary)",  bg: "var(--primary-dim)" },
@@ -292,7 +362,14 @@ export const MEETING_STATUS: Record<MeetingStatus, { label: string; color: strin
   minus:      { label: "Минус",         color: "var(--red)",      bg: "var(--red-bg)" },
   push:       { label: "Дожим",         color: "var(--yellow)",   bg: "rgba(202,138,4,0.12)" },
   rescheduled:{ label: "Перенёс",       color: "var(--text3)",    bg: "var(--bg3)" },
+  // Distinct from «Минус» (happened, lost) and «Перенёс» (moved to a new date).
+  not_held:   { label: "Не проведено",  color: "var(--orange)",   bg: "var(--orange-bg)" },
 };
+
+/** Every meeting status, in the order used by filters, tables and summaries. */
+export const MEETING_STATUS_KEYS: MeetingStatus[] = [
+  "scheduled", "closed", "minus", "push", "rescheduled", "not_held",
+];
 
 // ===== Bug Reports =====
 export type BugStatus = "new" | "in_progress" | "resolved";
@@ -325,14 +402,25 @@ export const BUG_PRIORITY: Record<BugPriority, { label: string; color: string }>
 // ===== Leads =====
 export type LeadStatusType = "active" | "archived";
 
+/** pending — оплат нет · partial — оплачена часть · paid — оплачена вся сумма */
+export type DealStatus = "pending" | "partial" | "paid";
+
+export const DEAL_STATUS: Record<DealStatus, { label: string; color: string; bg: string }> = {
+  pending: { label: "Нет оплат",    color: "var(--text3)",  bg: "var(--bg3)" },
+  partial: { label: "Частично",     color: "var(--yellow)", bg: "rgba(202,138,4,0.12)" },
+  paid:    { label: "Оплачено",     color: "var(--green)",  bg: "var(--green-bg)" },
+};
+
 export interface Deal {
   id: number;
   lead_id: number;
+  /** Сумма сделки — the single canonical amount. */
   amount: number;
+  /** Derived from confirmed payments; never edited directly. */
   paid_amount: number;
   payment_date: string | null;
   payment_method: string;
-  status: "pending" | "paid";
+  status: DealStatus;
   setter_id: number | null;
   closer_id: number | null;
   deal_type: string;
@@ -343,7 +431,54 @@ export interface Deal {
   closer_commission: number;
   created_at: string;
   updated_at: string;
+  /** Derived server-side, never stored. */
+  remaining_amount: number;
+  scheduled_amount: number;
+  unscheduled_amount: number;
 }
+
+/** Stored payment states plus the server-derived `overdue`. */
+export type PaymentStatus = "planned" | "partial" | "paid" | "overdue" | "cancelled";
+
+export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; color: string; bg: string }> = {
+  planned:   { label: "Запланирован",    color: "var(--text3)",   bg: "var(--bg3)" },
+  partial:   { label: "Частично оплачен", color: "var(--yellow)", bg: "rgba(202,138,4,0.12)" },
+  paid:      { label: "Оплачен",          color: "var(--green)",  bg: "var(--green-bg)" },
+  overdue:   { label: "Просрочен",        color: "var(--red)",    bg: "var(--red-bg)" },
+  cancelled: { label: "Отменён",          color: "var(--text3)",  bg: "var(--bg3)" },
+};
+
+export interface DealPayment {
+  id: number;
+  deal_id: number;
+  planned_date: string;
+  planned_amount: number;
+  paid_amount: number;
+  paid_date: string | null;
+  status: PaymentStatus;
+  is_overdue: boolean;
+  payment_method: string;
+  account_id: number | null;
+  comment: string;
+  finance_transaction_id: number | null;
+  created_by: number | null;
+  updated_by: number | null;
+  author: User | null;
+  editor: User | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentSchedule {
+  deal: Deal | null;
+  payments: DealPayment[];
+  /** How much of the deal amount is not covered by the schedule yet. */
+  unscheduled_amount: number;
+}
+
+export const PAYMENT_METHODS = [
+  "Наличные", "Перевод", "Карта", "Расчётный счёт", "Другое",
+] as const;
 
 // ===== Finance =====
 
@@ -500,7 +635,9 @@ export interface Lead {
   stage_id: number | null;
   setter_id: number | null;
   closer_id: number | null;
+  /** @deprecated mirrors of Deal.amount / paid — use deal_amount & paid_amount. */
   potential_amount: number;
+  /** @deprecated see potential_amount */
   actual_amount: number;
   status: LeadStatusType;
   next_action_type: string;
@@ -508,6 +645,14 @@ export interface Lead {
   comment: string;
   reject_reason_id: number | null;
   reject_comment: string;
+  // ── Attribution ──
+  source_detail: string;
+  content_ref: string;
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  utm_content: string;
+  external_lead_id: string;
   created_at: string;
   updated_at: string;
   source: LeadSource | null;
@@ -516,6 +661,11 @@ export interface Lead {
   setter: User | null;
   closer: User | null;
   active_deal: Deal | null;
+  // ── Canonical money view ──
+  deal_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  deal_status: DealStatus;
 }
 
 export interface FunnelCard extends Lead {
@@ -529,7 +679,9 @@ export interface FunnelStats {
   waiting_payment: number;
   closed_won: number;
   conversion_pct: number;
-  potential_sum: number;
+  deals_sum: number;
+  paid_sum: number;
+  remaining_sum: number;
 }
 
 export interface FunnelResponse {
@@ -597,6 +749,7 @@ export interface LeadDetail extends Lead {
     icon: string;
     by?: string;
   }[];
+  payments: DealPayment[];
 }
 
 export interface LeadListResponse {
@@ -610,9 +763,28 @@ export interface LeadStats {
   meetings_period: number;
   closed_won: number;
   conversion_pct: number;
-  potential_sum: number;
+  deals_sum: number;
+  paid_sum: number;
+  remaining_sum: number;
   cpl: number | null;
 }
+
+/** Shared filter state for the two views of the «Лиды и воронка» page. */
+export interface LeadFilters {
+  search: string;
+  date_from: string;
+  date_to: string;
+  stage_id: string;
+  source_id: string;
+  service_id: string;
+  setter_id: string;
+  closer_id: string;
+}
+
+export const EMPTY_LEAD_FILTERS: LeadFilters = {
+  search: "", date_from: "", date_to: "", stage_id: "",
+  source_id: "", service_id: "", setter_id: "", closer_id: "",
+};
 
 export const ACTIVITY_TYPES = [
   "Звонок исходящий",
@@ -781,3 +953,59 @@ export interface LabProject {
   creator: User | null;
   user_can_manage: boolean;
 }
+
+// ───────────────────────── Calendar ─────────────────────────────
+
+/** Visually distinct sources in Nevocean's own calendar. */
+export type CalendarSource = "task" | "personal_meeting" | "crm_meeting";
+
+export const CALENDAR_SOURCE: Record<
+  CalendarSource,
+  { label: string; color: string; bg: string; icon: string }
+> = {
+  task:             { label: "Задача",         color: "var(--primary)", bg: "var(--primary-dim)", icon: "task_alt" },
+  personal_meeting: { label: "Личная встреча", color: "var(--orange)",  bg: "var(--orange-bg)",   icon: "event" },
+  crm_meeting:      { label: "Встреча CRM",    color: "var(--green)",   bg: "var(--green-bg)",    icon: "handshake" },
+};
+
+export const CALENDAR_SOURCE_KEYS: CalendarSource[] = [
+  "task", "personal_meeting", "crm_meeting",
+];
+
+export interface CalendarEvent {
+  id: string;
+  source: CalendarSource;
+  title: string;
+  start: string;
+  end: string | null;
+  all_day: boolean;
+  location: string;
+  description: string;
+  /** CRM meeting status, or open/done for tasks. */
+  status: string;
+  editable: boolean;
+  task_id: number | null;
+  meeting_id: number | null;
+  lead_id: number | null;
+  board_id: number | null;
+  owner: User | null;
+  closer: User | null;
+  setter: User | null;
+}
+
+export interface CalendarResponse {
+  events: CalendarEvent[];
+  user_id: number;
+  date_from: string;
+  date_to: string;
+}
+
+/** Calendar presentation modes, mirrored into `?calendarView=`. */
+export type CalendarViewMode = "day" | "week" | "month" | "agenda";
+
+export const CALENDAR_VIEW_OPTIONS: { value: CalendarViewMode; label: string; icon: string }[] = [
+  { value: "day",    label: "День",       icon: "calendar_view_day" },
+  { value: "week",   label: "Неделя",     icon: "calendar_view_week" },
+  { value: "month",  label: "Месяц",      icon: "calendar_view_month" },
+  { value: "agenda", label: "Расписание", icon: "view_agenda" },
+];

@@ -1,6 +1,7 @@
 import type {
   User, UserWithStats, Project, Task, Department, Board, BoardColumn,
   ProjectStatus, ColumnDef, SalesRecord, MarketingRecord,
+  BoardShareStatus, BoardShareCreated, PublicBoard,
 } from "./types";
 
 const TOKEN_KEY = "nevodevs_token";
@@ -22,7 +23,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, { ...options, headers });
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
+    // Public share pages must stay usable even if this browser happens to have
+    // an expired employee token from an earlier NevOcean session.
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/share/")) {
+      window.location.href = "/login";
+    }
     throw new Error("Unauthorized");
   }
   if (!res.ok) {
@@ -69,6 +74,24 @@ export const api = {
   reassignBots: (fromId: number, toId: number) => request<any>(`/users/${fromId}/reassign-bots?new_owner_id=${toId}`, { method: "POST" }),
   userBotsCount: (id: number) => request<{ count: number }>(`/users/${id}/bots-count`),
 
+  // avatars — multipart, so the JSON helper is bypassed deliberately
+  uploadAvatar: async (userId: number, file: File): Promise<User> => {
+    const token = getToken();
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/users/${userId}/avatar`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Ошибка загрузки" }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
+  deleteAvatar: (userId: number) => request<User>(`/users/${userId}/avatar`, { method: "DELETE" }),
+
   // departments
   listDepartments: () => request<Department[]>("/departments"),
   getDepartment: (slug: string) => request<Department>(`/departments/${slug}`),
@@ -101,6 +124,11 @@ export const api = {
   getPersonalBoard: (userId: number) => request<Board>(`/boards/personal/${userId}`),
   getBoard: (id: number) => request<Board>(`/boards/${id}`),
   boardsForDepartment: (deptId: number) => request<Board[]>(`/boards/by-department/${deptId}`),
+  getBoardShare: (boardId: number) => request<BoardShareStatus>(`/boards/${boardId}/share`),
+  createBoardShare: (boardId: number) =>
+    request<BoardShareCreated>(`/boards/${boardId}/share`, { method: "POST" }),
+  revokeBoardShare: (boardId: number) =>
+    request<void>(`/boards/${boardId}/share`, { method: "DELETE" }),
   addColumn: (boardId: number, data: { name: string; color?: string; is_done?: boolean }) =>
     request<BoardColumn>(`/boards/${boardId}/columns`, { method: "POST", body: JSON.stringify(data) }),
   updateColumn: (colId: number, data: any) => request<BoardColumn>(`/boards/columns/${colId}`, { method: "PATCH", body: JSON.stringify(data) }),
@@ -113,8 +141,9 @@ export const api = {
   },
   createTask: (data: any) => request<Task>("/tasks", { method: "POST", body: JSON.stringify(data) }),
   updateTask: (id: number, data: any) => request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  /** Returns every task in the affected columns, already renumbered by the server. */
   moveTask: (id: number, column_id: number, position: number) =>
-    request<Task>(`/tasks/${id}/move`, { method: "PATCH", body: JSON.stringify({ column_id, position }) }),
+    request<{ tasks: Task[] }>(`/tasks/${id}/move`, { method: "PATCH", body: JSON.stringify({ column_id, position }) }),
   completeTask: (id: number) => request<Task>(`/tasks/${id}/complete`, { method: "PATCH" }),
   deleteTask: (id: number) => request<void>(`/tasks/${id}`, { method: "DELETE" }),
 
@@ -181,6 +210,19 @@ export const api = {
     request<BoardColumn>(`/boards/columns/${colId}/position?new_position=${newPosition}`, { method: "PATCH" }),
 };
 
+/** Public links never send the employee JWT and never redirect to /login. */
+export async function getPublicBoard(token: string): Promise<PublicBoard> {
+  const res = await fetch("/api/public/boards/view", {
+    cache: "no-store",
+    headers: { "X-Board-Share-Token": token },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Ссылка недействительна" }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 // search
 export const searchApi = {
   search: (q: string) => request<{ users: any[]; projects: any[]; tasks: any[] }>(`/search?q=${encodeURIComponent(q)}`),
@@ -219,8 +261,13 @@ export const settingsApi = {
   updateService: (id: number, data: any) => request<import("./types").ServiceItem>(`/settings/services/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   reorderService: (id: number, position: number) => request<import("./types").ServiceItem[]>(`/settings/services/${id}/reorder?new_position=${position}`, { method: "POST" }),
 
-  // Stages
-  listStages: () => request<import("./types").LeadStage[]>("/settings/stages"),
+  // Stages — archived ones are excluded unless explicitly requested
+  listStages: (includeArchived = false) =>
+    request<import("./types").LeadStage[]>(
+      `/settings/stages${includeArchived ? "?include_archived=true" : ""}`,
+    ),
+  archiveStage: (id: number) =>
+    request<import("./types").LeadStage>(`/settings/stages/${id}/archive`, { method: "POST" }),
   createStage: (data: any) => request<import("./types").LeadStage>("/settings/stages", { method: "POST", body: JSON.stringify(data) }),
   updateStage: (id: number, data: any) => request<import("./types").LeadStage>(`/settings/stages/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   reorderStage: (id: number, position: number) => request<import("./types").LeadStage[]>(`/settings/stages/${id}/reorder?new_position=${position}`, { method: "POST" }),
@@ -245,6 +292,30 @@ export const settingsApi = {
 };
 
 // leads
+/** Filters shared by the list and funnel views of «Лиды и воронка». */
+export interface LeadQuery {
+  source_id?: number | string; service_id?: number | string;
+  setter_id?: number | string; closer_id?: number | string;
+  stage_id?: number | string; status?: string;
+  date_from?: string; date_to?: string; search?: string;
+  limit?: number; offset?: number;
+}
+
+function leadQueryString(f?: LeadQuery): string {
+  const p = new URLSearchParams();
+  for (const key of [
+    "source_id", "service_id", "setter_id", "closer_id", "stage_id",
+    "status", "date_from", "date_to", "search",
+  ] as const) {
+    const v = f?.[key];
+    if (v !== undefined && v !== null && v !== "") p.set(key, String(v));
+  }
+  if (f?.limit !== undefined) p.set("limit", String(f.limit));
+  if (f?.offset) p.set("offset", String(f.offset));
+  const qs = p.toString();
+  return qs ? "?" + qs : "";
+}
+
 export const leadApi = {
   stats: (f?: { date_from?: string; date_to?: string }) => {
     const p = new URLSearchParams();
@@ -253,59 +324,67 @@ export const leadApi = {
     const qs = p.toString();
     return request<import("./types").LeadStats>(`/leads/stats${qs ? "?" + qs : ""}`);
   },
-  list: (f?: {
-    source_id?: number; service_id?: number; setter_id?: number; closer_id?: number;
-    stage_id?: number; status?: string; date_from?: string; date_to?: string;
-    search?: string; limit?: number; offset?: number;
-  }) => {
-    const p = new URLSearchParams();
-    if (f?.source_id)  p.set("source_id",  String(f.source_id));
-    if (f?.service_id) p.set("service_id", String(f.service_id));
-    if (f?.setter_id)  p.set("setter_id",  String(f.setter_id));
-    if (f?.closer_id)  p.set("closer_id",  String(f.closer_id));
-    if (f?.stage_id)   p.set("stage_id",   String(f.stage_id));
-    if (f?.status)     p.set("status",     f.status);
-    if (f?.date_from)  p.set("date_from",  f.date_from);
-    if (f?.date_to)    p.set("date_to",    f.date_to);
-    if (f?.search)     p.set("search",     f.search);
-    if (f?.limit)      p.set("limit",      String(f.limit));
-    if (f?.offset)     p.set("offset",     String(f.offset));
-    const qs = p.toString();
-    return request<import("./types").LeadListResponse>(`/leads${qs ? "?" + qs : ""}`);
-  },
+  list: (f?: LeadQuery) =>
+    request<import("./types").LeadListResponse>(`/leads${leadQueryString(f)}`),
   get: (id: number) => request<import("./types").LeadDetail>(`/leads/${id}`),
   create: (data: any) => request<import("./types").Lead>("/leads", { method: "POST", body: JSON.stringify(data) }),
   update: (id: number, data: any) => request<import("./types").Lead>(`/leads/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   archive: (id: number) => request<import("./types").Lead>(`/leads/${id}/archive`, { method: "POST" }),
   changeStage: (id: number, to_stage_id: number, comment = "", extra_data: Record<string, any> = {}) =>
     request<import("./types").Lead>(`/leads/${id}/stage`, { method: "PATCH", body: JSON.stringify({ to_stage_id, comment, extra_data }) }),
-  funnel: (f?: { date_from?: string; date_to?: string; source_id?: number; setter_id?: number; closer_id?: number }) => {
-    const p = new URLSearchParams();
-    if (f?.date_from) p.set("date_from", f.date_from);
-    if (f?.date_to) p.set("date_to", f.date_to);
-    if (f?.source_id) p.set("source_id", String(f.source_id));
-    if (f?.setter_id) p.set("setter_id", String(f.setter_id));
-    if (f?.closer_id) p.set("closer_id", String(f.closer_id));
-    const qs = p.toString();
-    return request<import("./types").FunnelResponse>(`/leads/funnel${qs ? "?" + qs : ""}`);
-  },
-  funnelStats: (f?: { date_from?: string; date_to?: string; source_id?: number; setter_id?: number; closer_id?: number }) => {
-    const p = new URLSearchParams();
-    if (f?.date_from) p.set("date_from", f.date_from);
-    if (f?.date_to) p.set("date_to", f.date_to);
-    if (f?.source_id) p.set("source_id", String(f.source_id));
-    if (f?.setter_id) p.set("setter_id", String(f.setter_id));
-    if (f?.closer_id) p.set("closer_id", String(f.closer_id));
-    const qs = p.toString();
-    return request<import("./types").FunnelStats>(`/leads/funnel-stats${qs ? "?" + qs : ""}`);
-  },
+  // Funnel accepts the same filter set as the list — the two views never diverge.
+  funnel: (f?: LeadQuery) =>
+    request<import("./types").FunnelResponse>(`/leads/funnel${leadQueryString(f)}`),
+  funnelStats: (f?: LeadQuery) =>
+    request<import("./types").FunnelStats>(`/leads/funnel-stats${leadQueryString(f)}`),
   addActivity: (id: number, data: { activity_type: string; channel?: string; description?: string; responsible_id?: number }) =>
     request<import("./types").LeadActivity>(`/leads/${id}/activities`, { method: "POST", body: JSON.stringify(data) }),
   addFile: (id: number, data: { name: string; url: string; file_type?: string }) =>
     request<import("./types").LeadFile>(`/leads/${id}/files`, { method: "POST", body: JSON.stringify(data) }),
   deleteFile: (leadId: number, fileId: number) =>
     request<void>(`/leads/${leadId}/files/${fileId}`, { method: "DELETE" }),
+
+  // ── Payment schedule ──
+  payments: (leadId: number) =>
+    request<import("./types").PaymentSchedule>(`/leads/${leadId}/payments`),
+  createPayment: (leadId: number, data: {
+    planned_date: string; planned_amount: number;
+    payment_method?: string; account_id?: number | null; comment?: string;
+  }) => request<import("./types").PaymentSchedule>(`/leads/${leadId}/payments`, {
+    method: "POST", body: JSON.stringify(data),
+  }),
+  updatePayment: (leadId: number, paymentId: number, data: {
+    planned_date?: string; planned_amount?: number; payment_method?: string;
+    account_id?: number | null; comment?: string; cancelled?: boolean;
+  }) => request<import("./types").PaymentSchedule>(`/leads/${leadId}/payments/${paymentId}`, {
+    method: "PATCH", body: JSON.stringify(data),
+  }),
+  /** «Зафиксировать оплату» — records the amount actually received. */
+  confirmPayment: (leadId: number, paymentId: number, data: {
+    amount: number; paid_date?: string; payment_method?: string;
+    account_id?: number | null; comment?: string;
+  }) => request<import("./types").PaymentSchedule>(
+    `/leads/${leadId}/payments/${paymentId}/confirm`,
+    { method: "POST", body: JSON.stringify(data) },
+  ),
+  deletePayment: (leadId: number, paymentId: number) =>
+    request<import("./types").PaymentSchedule>(`/leads/${leadId}/payments/${paymentId}`, {
+      method: "DELETE",
+    }),
 };
+
+// unified personal calendar
+export const calendarApi = {
+  get: (f?: { user_id?: number; date_from?: string; date_to?: string }) => {
+    const p = new URLSearchParams();
+    if (f?.user_id) p.set("user_id", String(f.user_id));
+    if (f?.date_from) p.set("date_from", f.date_from);
+    if (f?.date_to) p.set("date_to", f.date_to);
+    const qs = p.toString();
+    return request<import("./types").CalendarResponse>(`/calendar${qs ? "?" + qs : ""}`);
+  },
+};
+
 
 // finance
 export const financeApi = {
@@ -408,10 +487,11 @@ export const devPayrollConfigApi = {
 
 // meetings
 export const meetingApi = {
-  list: (f?: { closer_id?: number; setter_id?: number; year?: number; month?: number; date_from?: string; date_to?: string; offset?: number; limit?: number; parent_only?: boolean }) => {
+  list: (f?: { closer_id?: number; setter_id?: number; status?: string; year?: number; month?: number; date_from?: string; date_to?: string; offset?: number; limit?: number; parent_only?: boolean }) => {
     const p = new URLSearchParams();
     if (f?.closer_id) p.set("closer_id", String(f.closer_id));
     if (f?.setter_id) p.set("setter_id", String(f.setter_id));
+    if (f?.status) p.set("status", f.status);
     if (f?.parent_only === false) p.set("parent_only", "false");
     if (f?.year)   p.set("year",   String(f.year));
     if (f?.month)  p.set("month",  String(f.month));

@@ -9,40 +9,19 @@ import { TransitionModal, stageKind, STAGE_ACTION_LABELS } from "@/components/Tr
 import { useApp } from "@/context/AppContext";
 import { useToast } from "@/context/ToastContext";
 import { leadApi, settingsApi, api } from "@/lib/api";
+import { PaymentScheduleSection } from "@/components/leads/PaymentSchedule";
+import {
+  fmtDate, fmtDateTime, fmtMoney, fmtMoneyShort,
+  utcToLocalInput as utcToLocal, localInputToUtc as localToUTC,
+} from "@/lib/format";
 import Link from "next/link";
 import type {
-  LeadDetail, LeadStage, LeadSource, ServiceItem, UserWithStats,
+  Account, LeadDetail, LeadStage, LeadSource, PaymentSchedule, ServiceItem, UserWithStats,
   LeadActivity, LeadFile, Project, RejectReason,
 } from "@/lib/types";
-import { ACTIVITY_TYPES, FILE_TYPES } from "@/lib/types";
+import { ACTIVITY_TYPES, DEAL_STATUS, FILE_TYPES } from "@/lib/types";
 
 // ── utils ────────────────────────────────────────────────────────
-function fmtDate(iso: string | null) {
-  if (!iso) return "—";
-  const D = iso.slice(8, 10), M = iso.slice(5, 7), Y = iso.slice(0, 4);
-  return `${D}.${M}.${Y}`;
-}
-function utcToLocal(s: string): string {
-  const Y = +s.slice(0, 4), Mo = +s.slice(5, 7) - 1, D = +s.slice(8, 10);
-  const h = +s.slice(11, 13), m = +s.slice(14, 16);
-  const ms = Date.UTC(Y, Mo, D, h, m) + 6 * 3600 * 1000;
-  const ld = new Date(ms);
-  return `${ld.getUTCFullYear()}-${String(ld.getUTCMonth()+1).padStart(2,"0")}-${String(ld.getUTCDate()).padStart(2,"0")}T${String(ld.getUTCHours()).padStart(2,"0")}:${String(ld.getUTCMinutes()).padStart(2,"0")}`;
-}
-function localToUTC(s: string): string {
-  const [d, t = "00:00"] = s.split("T");
-  const [Y, Mo, D] = d.split("-").map(Number);
-  const [h, m] = t.split(":").map(Number);
-  return new Date(Date.UTC(Y, Mo - 1, D, h - 6, m)).toISOString();
-}
-function fmtDateTime(iso: string | null) {
-  if (!iso) return "—";
-  const local = utcToLocal(iso);
-  const D = local.slice(8, 10), M = local.slice(5, 7), Y = local.slice(0, 4);
-  const h = local.slice(11, 13), m = local.slice(14, 16);
-  return `${D}.${M}.${Y} ${h}:${m}`;
-}
-function fmtMoney(v: number) { return v ? v.toLocaleString("ru-RU") + " с" : "—"; }
 function daysSince(iso: string | null) {
   if (!iso) return null;
   const Y = parseInt(iso.slice(0, 4)), M = parseInt(iso.slice(5, 7)) - 1, D = parseInt(iso.slice(8, 10));
@@ -284,10 +263,18 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
     service_id: lead.service_id != null ? String(lead.service_id) : "",
     setter_id: lead.setter_id != null ? String(lead.setter_id) : "",
     closer_id: lead.closer_id != null ? String(lead.closer_id) : "",
-    potential_amount: String(lead.potential_amount),
+    // Canonical deal amount — written through to Deal.amount by the API.
+    deal_amount: String(lead.deal_amount ?? 0),
     next_action_type: lead.next_action_type,
     next_action_at: lead.next_action_at ? utcToLocal(lead.next_action_at) : "",
     comment: lead.comment,
+    source_detail: lead.source_detail ?? "",
+    content_ref: lead.content_ref ?? "",
+    utm_source: lead.utm_source ?? "",
+    utm_medium: lead.utm_medium ?? "",
+    utm_campaign: lead.utm_campaign ?? "",
+    utm_content: lead.utm_content ?? "",
+    external_lead_id: lead.external_lead_id ?? "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -313,10 +300,17 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
         service_id: form.service_id ? Number(form.service_id) : null,
         setter_id: form.setter_id ? Number(form.setter_id) : null,
         closer_id: form.closer_id ? Number(form.closer_id) : null,
-        potential_amount: form.potential_amount ? Number(form.potential_amount) : 0,
+        deal_amount: form.deal_amount ? Number(form.deal_amount) : 0,
         next_action_type: form.next_action_type,
         next_action_at: form.next_action_at ? localToUTC(form.next_action_at) : null,
         comment: form.comment,
+        source_detail: form.source_detail,
+        content_ref: form.content_ref,
+        utm_source: form.utm_source,
+        utm_medium: form.utm_medium,
+        utm_campaign: form.utm_campaign,
+        utm_content: form.utm_content,
+        external_lead_id: form.external_lead_id,
       });
       toast("Лид обновлён", "success");
       onSaved(); onClose();
@@ -368,12 +362,27 @@ function EditLeadModal({ lead, sources, services, users, onClose, onSaved }: {
             {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </div>
-        <div><label className="form-label">Потенциал (сом)</label><input className="form-input" type="number" value={form.potential_amount} onChange={f("potential_amount")} /></div>
+        <div><label className="form-label">Сумма сделки (сом)</label><input className="form-input" type="number" min={0} value={form.deal_amount} onChange={f("deal_amount")} /></div>
         <div><label className="form-label">Следующий шаг</label><input className="form-input" value={form.next_action_type} onChange={f("next_action_type")} placeholder="Позвонить, отправить КП..." /></div>
         <div style={{ gridColumn: "1 / -1" }}>
           <label className="form-label">Дата следующего действия</label>
           <input className="form-input" type="datetime-local" value={form.next_action_at} onChange={f("next_action_at")} />
         </div>
+
+        <div style={{ gridColumn: "1 / -1", marginTop: 6, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text3)" }}>
+          Атрибуция
+        </div>
+        <div><label className="form-label">Уточнение источника</label><input className="form-input" value={form.source_detail} onChange={f("source_detail")} placeholder="Блогер, чат, рассылка…" /></div>
+        <div><label className="form-label">Рилс / контент</label><input className="form-input" value={form.content_ref} onChange={f("content_ref")} placeholder="Ссылка или ID публикации" /></div>
+        <div><label className="form-label">UTM source</label><input className="form-input" value={form.utm_source} onChange={f("utm_source")} /></div>
+        <div><label className="form-label">UTM medium</label><input className="form-input" value={form.utm_medium} onChange={f("utm_medium")} /></div>
+        <div><label className="form-label">UTM campaign</label><input className="form-input" value={form.utm_campaign} onChange={f("utm_campaign")} /></div>
+        <div><label className="form-label">UTM content</label><input className="form-input" value={form.utm_content} onChange={f("utm_content")} /></div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label className="form-label">Внешний ID лида</label>
+          <input className="form-input" value={form.external_lead_id} onChange={f("external_lead_id")} placeholder="ID из рекламной системы" />
+        </div>
+
         <div style={{ gridColumn: "1 / -1" }}>
           <label className="form-label">Комментарий</label>
           <textarea className="form-input" rows={3} value={form.comment} onChange={f("comment")} style={{ resize: "vertical" }} />
@@ -465,16 +474,20 @@ export default function LeadDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
-  const { isAdmin } = useApp();
+  const { isAdmin, user } = useApp();
 
   const [lead, setLead] = useState<LeadDetail | null>(null);
   const [stages, setStages] = useState<LeadStage[]>([]);
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [services, setServices] = useState<ServiceItem[]>([]);
   const [users, setUsers] = useState<UserWithStats[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [rejectReasons, setRejectReasons] = useState<RejectReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [linkedProject, setLinkedProject] = useState<Project | null>(null);
+  const [schedule, setSchedule] = useState<PaymentSchedule | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const [editModal, setEditModal] = useState(false);
   const [transitionStage, setTransitionStage] = useState<LeadStage | null>(null);
@@ -482,6 +495,19 @@ export default function LeadDetailPage() {
   const [fileModal, setFileModal] = useState(false);
   const [archiveConfirm, setArchiveConfirm] = useState(false);
   const [deleteFileId, setDeleteFileId] = useState<number | null>(null);
+
+  const loadSchedule = useCallback(async () => {
+    if (!id) return;
+    setScheduleLoading(true);
+    setScheduleError(null);
+    try {
+      setSchedule(await leadApi.payments(Number(id)));
+    } catch (e: unknown) {
+      setScheduleError((e as Error).message || "Не удалось загрузить график оплат");
+    } finally {
+      setScheduleLoading(false);
+    }
+  }, [id]);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -493,13 +519,16 @@ export default function LeadDetailPage() {
       }).catch(() => {});
     } catch { toast("Лид не найден", "error"); router.push("/leads"); }
     setLoading(false);
-  }, [id]);
+    loadSchedule();
+  }, [id, loadSchedule]);
 
   useEffect(() => {
+    // Stage history can reference archived stages, so include them here.
     settingsApi.listStages().then(setStages).catch(() => {});
     settingsApi.listSources().then(setSources).catch(() => {});
     settingsApi.listServices().then(setServices).catch(() => {});
     settingsApi.listRejectReasons().then(setRejectReasons).catch(() => {});
+    settingsApi.listAccounts().then(setAccounts).catch(() => {});
     api.listUsers().then(setUsers).catch(() => {});
   }, []);
 
@@ -542,10 +571,20 @@ export default function LeadDetailPage() {
   if (!lead) return null;
 
   const currentKind = lead.stage ? stageKind(lead.stage) : "generic";
-  const wonStage = stages.find((s) => s.is_won || stageKind(s) === "won");
+  // Archived stages must not show up as available transitions.
+  const activeStages = stages.filter((s) => !s.is_archived);
+  const wonStage = activeStages.find((s) => s.is_won || stageKind(s) === "won");
   const showPayButton =
     (currentKind === "waiting_payment" || currentKind === "contract") && wonStage;
   const noNextAction = !lead.next_action_type;
+  const dealStatus = DEAL_STATUS[lead.deal_status] ?? DEAL_STATUS.pending;
+  // Payment schedule rights mirror the backend rule.
+  const canManagePayments =
+    isAdmin ||
+    !!user?.is_founder ||
+    user?.position === "Финансовый директор" ||
+    user?.id === lead.setter_id ||
+    user?.id === lead.closer_id;
 
   return (
     <Shell title={lead.client_name}>
@@ -565,8 +604,21 @@ export default function LeadDetailPage() {
               {lead.phone && <span><span className="material-symbols-outlined" style={{ fontSize: 14, verticalAlign: "middle" }}>phone</span> {lead.phone}</span>}
               {lead.whatsapp && <span>WhatsApp: {lead.whatsapp}</span>}
               {lead.instagram && <span>Instagram: {lead.instagram}</span>}
-              {lead.potential_amount > 0 && (
-                <span style={{ color: "var(--primary)", fontWeight: 600 }}>{fmtMoney(lead.potential_amount)}</span>
+              {lead.deal_amount > 0 && (
+                <>
+                  <span style={{ color: "var(--primary)", fontWeight: 600 }}>
+                    Сумма сделки: {fmtMoneyShort(lead.deal_amount)}
+                  </span>
+                  <span style={{ color: "var(--green)", fontWeight: 600 }}>
+                    Оплачено: {fmtMoneyShort(lead.paid_amount)}
+                  </span>
+                  <span style={{ color: lead.remaining_amount > 0 ? "var(--yellow)" : "var(--green)", fontWeight: 600 }}>
+                    Остаток: {fmtMoneyShort(lead.remaining_amount)}
+                  </span>
+                  <span style={{ background: dealStatus.bg, color: dealStatus.color, padding: "2px 8px", borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
+                    {dealStatus.label}
+                  </span>
+                </>
               )}
             </div>
             <div style={{ display: "flex", gap: 16, marginTop: 6, fontSize: 12, color: "var(--text3)" }}>
@@ -591,7 +643,7 @@ export default function LeadDetailPage() {
               </Button>
             )}
             <ActionsDropdown
-              stages={stages}
+              stages={activeStages}
               currentStageId={lead.stage_id}
               onSelect={setTransitionStage}
             />
@@ -608,9 +660,9 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      {/* Stage line */}
+      {/* Stage line — archived stages are not part of the active path */}
       <Section title="Этапы сделки" icon="linear_scale">
-        <StageLine stages={stages} currentStageId={lead.stage_id} history={lead.stage_history} />
+        <StageLine stages={activeStages} currentStageId={lead.stage_id} history={lead.stage_history} />
       </Section>
 
       {/* Next action */}
@@ -652,62 +704,71 @@ export default function LeadDetailPage() {
           )}
         </Section>
 
-        {/* Financial summary */}
+        {/* Financial summary — Deal.amount is the single source of truth */}
         <div>
           <Section title="Финансовая сводка" icon="account_balance_wallet">
-            {(() => {
-              const deal = lead.active_deal;
-              const isPaid = deal?.status === "paid";
-              const pending = <span style={{ color: "var(--text3)", fontStyle: "italic" }}>после оплаты</span>;
-              return (
-                <>
-                  <Row label="Потенциал" value={fmtMoney(lead.potential_amount)} />
-                  <Row
-                    label="Факт. оплата"
-                    value={
-                      isPaid
-                        ? <span style={{ color: "var(--green)", fontWeight: 600 }}>{fmtMoney(deal!.paid_amount)}</span>
-                        : (deal?.amount ? <span style={{ color: "var(--yellow)" }}>{fmtMoney(deal.amount)} (ожидается)</span> : pending)
-                    }
-                  />
-                  <Row
-                    label="Статус оплаты"
-                    value={
-                      isPaid
-                        ? <span style={{ background: "var(--green-bg)", color: "var(--green)", padding: "2px 8px", borderRadius: 5, fontSize: 11, fontWeight: 600 }}>✓ Оплачено {deal?.payment_date ? fmtDate(deal.payment_date) : ""}</span>
-                        : <span style={{ background: "var(--bg3)", color: "var(--text3)", padding: "2px 8px", borderRadius: 5, fontSize: 11 }}>Ожидается</span>
-                    }
-                  />
-                  {isPaid && deal && (
-                    <>
-                      <Row label="Способ оплаты" value={deal.payment_method || "—"} />
-                      <Row
-                        label="Комиссия сеттера"
-                        value={deal.setter_commission > 0
-                          ? <span style={{ color: "var(--primary)", fontWeight: 600 }}>{fmtMoney(deal.setter_commission)}</span>
-                          : pending}
-                      />
-                      <Row
-                        label="Комиссия клоузера"
-                        value={deal.closer_commission > 0
-                          ? <span style={{ color: "var(--primary)", fontWeight: 600 }}>{fmtMoney(deal.closer_commission)}</span>
-                          : pending}
-                      />
-                      <Row
-                        label="Маржа"
-                        value={(() => {
-                          const margin = deal.paid_amount - deal.setter_commission - deal.closer_commission;
-                          return <span style={{ color: margin >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{fmtMoney(margin)}</span>;
-                        })()}
-                      />
-                    </>
-                  )}
-                  {!isPaid && deal?.expected_payment_date && (
-                    <Row label="Ожид. оплата" value={fmtDate(deal.expected_payment_date)} />
-                  )}
-                </>
-              );
-            })()}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 130px" }}>
+                  <div style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                    Сумма сделки
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{fmtMoney(lead.deal_amount)}</div>
+                </div>
+                <div style={{ flex: "1 1 130px" }}>
+                  <div style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                    Оплачено
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--green)" }}>{fmtMoney(lead.paid_amount)}</div>
+                </div>
+                <div style={{ flex: "1 1 130px" }}>
+                  <div style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                    Остаток
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: lead.remaining_amount > 0 ? "var(--yellow)" : "var(--green)" }}>
+                    {fmtMoney(lead.remaining_amount)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Row
+              label="Статус сделки"
+              value={
+                <span style={{ background: dealStatus.bg, color: dealStatus.color, padding: "2px 8px", borderRadius: 5, fontSize: 11, fontWeight: 600 }}>
+                  {dealStatus.label}
+                </span>
+              }
+            />
+            {lead.active_deal && (
+              <>
+                <Row label="Способ последней оплаты" value={lead.active_deal.payment_method || "—"} />
+                <Row label="Дата последней оплаты" value={lead.active_deal.payment_date ? fmtDate(lead.active_deal.payment_date) : "—"} />
+                {lead.deal_status === "paid" && (
+                  <>
+                    <Row
+                      label="Комиссия сеттера"
+                      value={lead.active_deal.setter_commission > 0
+                        ? <span style={{ color: "var(--primary)", fontWeight: 600 }}>{fmtMoney(lead.active_deal.setter_commission)}</span>
+                        : "—"}
+                    />
+                    <Row
+                      label="Комиссия клоузера"
+                      value={lead.active_deal.closer_commission > 0
+                        ? <span style={{ color: "var(--primary)", fontWeight: 600 }}>{fmtMoney(lead.active_deal.closer_commission)}</span>
+                        : "—"}
+                    />
+                    <Row
+                      label="Маржа"
+                      value={(() => {
+                        const d = lead.active_deal!;
+                        const margin = d.paid_amount - d.setter_commission - d.closer_commission;
+                        return <span style={{ color: margin >= 0 ? "var(--green)" : "var(--red)", fontWeight: 600 }}>{fmtMoney(margin)}</span>;
+                      })()}
+                    />
+                  </>
+                )}
+              </>
+            )}
           </Section>
 
           {linkedProject && (
@@ -753,6 +814,20 @@ export default function LeadDetailPage() {
           ))}
         </Section>
       </div>
+
+      {/* Payment schedule */}
+      <Section title="График оплат" icon="payments">
+        <PaymentScheduleSection
+          leadId={lead.id}
+          schedule={schedule}
+          accounts={accounts}
+          canManage={canManagePayments}
+          loading={scheduleLoading}
+          error={scheduleError}
+          onChanged={(next) => { setSchedule(next); reload(); }}
+          onRetry={loadSchedule}
+        />
+      </Section>
 
       {/* Activities */}
       <Section title="История касаний" icon="history"
@@ -831,7 +906,9 @@ export default function LeadDetailPage() {
           card={{
             client_name: lead.client_name,
             company_name: lead.company_name,
-            potential_amount: lead.potential_amount,
+            deal_amount: lead.deal_amount,
+            paid_amount: lead.paid_amount,
+            remaining_amount: lead.remaining_amount,
             active_deal: lead.active_deal,
             closer_id: lead.closer_id,
             closer: lead.closer,

@@ -27,8 +27,13 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
       SECRET_KEY: ${SECRET_KEY}
+      INITIAL_USER_PASSWORD: ${INITIAL_USER_PASSWORD}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+      MEDIA_ROOT: /app/media
+    volumes:
+      # Uploaded avatars must survive container rebuilds.
+      - media:/app/media
     expose:
       - "8000"
 
@@ -39,6 +44,8 @@ services:
       - backend
     environment:
       BACKEND_API_URL: http://backend:8000/api
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-nevocean.anti-flow.com,localhost:9000,127.0.0.1:9000}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-https://nevocean.anti-flow.com}
     expose:
       - "9000"
 
@@ -64,9 +71,11 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
-      - certbot-webroot:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      # Serve uploaded media directly, without going through the app.
+      - media:/var/www/media:ro
 
 volumes:
   pgdata:
-  certbot-webroot:
+  media:

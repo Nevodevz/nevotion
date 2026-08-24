@@ -80,7 +80,7 @@ export default function DashboardPage() {
               {devTeam.slice(0, 8).map((u) => (
                 <div key={u.id} className="side-row clickable" onClick={() => router.push(`/team/${u.id}`)}>
                   <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <Avatar name={u.name} color={u.avatar_color} size={24} /> {u.name}
+                    <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={24} /> {u.name}
                   </span>
                   <Dot c={u.is_online ? "var(--green)" : "var(--text3)"} />
                 </div>

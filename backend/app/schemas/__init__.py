@@ -3,7 +3,7 @@ from typing import Optional, Any
 
 from pydantic import BaseModel, EmailStr, ConfigDict
 
-from app.models import Role, ProjectStatus, Priority
+from app.models import Role, ProjectStatus, Priority, TaskKind
 
 
 # ---------- Auth ----------
@@ -18,6 +18,8 @@ class UserBase(BaseModel):
     email: EmailStr
     position: str = "Сотрудник"
     avatar_color: str = "indigo"
+    # Empty string → clients fall back to initials + avatar_color.
+    avatar_url: str = ""
 
 
 class UserCreate(UserBase):
@@ -147,6 +149,7 @@ class TaskBase(BaseModel):
     tag: str = "Задача"
     tag_color: str = "indigo"
     priority: Priority = Priority.med
+    start_date: Optional[date] = None
     due_date: Optional[date] = None
     column_id: Optional[int] = None
     owner_id: Optional[int] = None
@@ -154,6 +157,11 @@ class TaskBase(BaseModel):
     requester_id: Optional[int] = None
     assignee_ids: list[int] = []
     task_type: str = ""
+    # Structured card type — separate from the free-text `task_type` above.
+    kind: TaskKind = TaskKind.task
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    location: str = ""
 
 
 class TaskCreate(TaskBase):
@@ -166,6 +174,7 @@ class TaskUpdate(BaseModel):
     tag: Optional[str] = None
     tag_color: Optional[str] = None
     priority: Optional[Priority] = None
+    start_date: Optional[date] = None
     due_date: Optional[date] = None
     column_id: Optional[int] = None
     owner_id: Optional[int] = None
@@ -173,6 +182,10 @@ class TaskUpdate(BaseModel):
     requester_id: Optional[int] = None
     assignee_ids: Optional[list[int]] = None
     task_type: Optional[str] = None
+    kind: Optional[TaskKind] = None
+    start_at: Optional[datetime] = None
+    end_at: Optional[datetime] = None
+    location: Optional[str] = None
 
 
 class TaskMove(BaseModel):
@@ -191,6 +204,15 @@ class TaskOut(TaskBase):
     created_at: datetime
 
 
+class BoardTasksOut(BaseModel):
+    """Move result: the whole affected board slice, already normalised.
+
+    Returning every touched task lets the client replace its optimistic state
+    with the server's authoritative ordering in one round-trip.
+    """
+    tasks: list[TaskOut]
+
+
 class BoardOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -199,6 +221,40 @@ class BoardOut(BaseModel):
     owner_id: Optional[int] = None
     department_id: Optional[int] = None
     columns: list[BoardColumnOut] = []
+
+
+class BoardShareStatus(BaseModel):
+    active: bool
+    token_prefix: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class BoardShareCreated(BaseModel):
+    token: str
+    public_path: str
+    created_at: datetime
+
+
+class PublicTaskOut(BaseModel):
+    """Deliberately limited task shape exposed by an unguessable public link."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    description: str
+    tag: str
+    tag_color: str
+    priority: Priority
+    start_date: Optional[date] = None
+    due_date: Optional[date] = None
+    completed_at: Optional[date] = None
+    position: int
+    column_id: Optional[int] = None
+
+
+class PublicBoardOut(BaseModel):
+    name: str
+    columns: list[BoardColumnOut]
+    tasks: list[PublicTaskOut]
 
 
 # ---------- Sales ----------

@@ -103,7 +103,7 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
         {backend.map((u) => (
           <div key={u.id} className="backend-card card" onClick={() => router.push(`/team/${u.id}`)}>
             <div style={{ position: "relative" }}>
-              <Avatar name={u.name} color={u.avatar_color} size={42} />
+              <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={42} />
               <span className="sdot" style={{ background: u.is_online ? "var(--green)" : "var(--text3)" }} />
             </div>
             <div>
@@ -122,7 +122,7 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
           return (
             <div key={u.id} className="prompter-card card" onClick={() => router.push(`/team/${u.id}`)}>
               <div className="pc-head">
-                <Avatar name={u.name} color={u.avatar_color} size={40} />
+                <Avatar name={u.name} color={u.avatar_color} src={u.avatar_url} size={40} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="pc-name">{u.name}{u.position === "Тимлид" && <span className="pill">Тимлид</span>}</div>
                   <div className="pc-role">{u.position}</div>
@@ -251,7 +251,7 @@ export function DevDepartmentView({ dept, departments }: { dept: Department; dep
                     <td>
                       {p.owner ? (
                         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                          <Avatar name={p.owner.name} color={p.owner.avatar_color} size={22} /> {p.owner.name}
+                          <Avatar name={p.owner.name} color={p.owner.avatar_color} src={p.owner.avatar_url} size={22} /> {p.owner.name}
                         </span>
                       ) : <span style={{ color: "var(--text3)" }}>—</span>}
                     </td>

@@ -1,83 +1,110 @@
-# NevoOcean MCP Server (remote, Streamable HTTP)
+# NevOcean MCP Server
 
-Remote MCP-сервис для NevoOcean. Сотрудники подключают его в Claude как **custom
-connector** по URL — без доступа к репозиторию и без локальной установки.
-Сервис действует от имени пользователя, чей API-ключ передан в запросе: все
-права применяет backend (по заголовку `X-API-Key`), MCP их не обходит.
+Универсальный remote MCP-сервис на официальном Python SDK 2.x. Работает по
+Streamable HTTP в stateless-режиме и подходит любому клиенту, который умеет
+подключать HTTP MCP-серверы: Codex, Claude, Gemini и другим.
 
-## Как это развёрнуто
+Production URL:
 
-Сервис собирается и запускается как ещё один контейнер в `docker-compose.yml`
-(сервис `mcp`), слушает Streamable HTTP на `0.0.0.0:9000` внутри docker-сети.
-Наружу публикуется через nginx по пути `/mcp` на основном домене:
-
+```text
+https://nevocean.anti-flow.com/mcp
 ```
-https://nevocean.nevoai.kg/mcp
-```
-
-nginx проксирует `/mcp` на `mcp:9000` с отключённой буферизацией (стриминг).
-
-## Переменные окружения
-
-| Переменная | По умолчанию | Назначение |
-|---|---|---|
-| `BACKEND_API_URL` | `http://backend:8000/api` | Внутренний адрес backend API |
-| `MCP_HOST` | `0.0.0.0` | Адрес, на котором слушает сервис |
-| `MCP_PORT` | `9000` | Порт |
 
 ## Аутентификация
 
-Клиент (Claude) передаёт персональный API-ключ пользователя (формат `nvo_...`,
-создаётся в **Профиль → API-ключи**) одним из двух способов — сервис принимает оба:
+Каждый AI-клиент действует от имени владельца персонального ключа `nvo_...`,
+созданного в **Профиль → API-ключи**. Поддерживаются оба заголовка:
 
-- заголовок `Authorization: Bearer <ключ>`
-- заголовок `X-API-Key: <ключ>`
+```http
+Authorization: Bearer nvo_...
+X-API-Key: nvo_...
+```
 
-Сервис извлекает ключ из входящего HTTP-запроса и прокидывает его в backend
-(`X-API-Key: <ключ>`) при каждом вызове инструмента. Если backend вернул 401/403 —
-инструмент возвращает понятную текстовую ошибку. Если ключ не передан вовсе —
-все инструменты возвращают ошибку авторизации без обращения к backend.
+MCP-сервис не хранит ключ. Он передаёт его backend API, поэтому для AI действуют
+те же проверки досок, задач и CRM, что и для пользователя в веб-интерфейсе.
+Ошибки авторизации и API возвращаются как настоящие MCP tool errors (`isError`),
+а успешные вызовы — одновременно как text и structured content.
 
-## Подключение в Claude (custom connector)
+## Подключение клиентов
 
-1. Войдите в NevoOcean → **Профиль** → раздел **API-ключи (для Claude)**.
-2. Нажмите **Создать ключ**, скопируйте его — он показывается один раз.
-3. В Claude: **Settings → Connectors → Add custom connector**.
-4. Вставьте URL: `https://nevocean.nevoai.kg/mcp`.
-5. В поле авторизации коннектора вставьте свой API-ключ.
-6. Сохраните — инструменты NevoOcean появятся в Claude автоматически.
+### Codex CLI
 
-## Доступные инструменты
+Codex умеет читать Bearer-токен из переменной среды, поэтому секрет не попадает
+в команду или `config.toml`:
 
-| Инструмент | Описание |
-|---|---|
-| `list_tasks` | Список задач (фильтры: board_id, assignee_id, status) |
-| `get_task` | Детали задачи по ID |
-| `create_task` | Создать задачу |
-| `assign_task` | Назначить исполнителей |
-| `update_task_status` | Переместить задачу в колонку |
-| `complete_task` | Завершить задачу |
-| `list_boards` | Список доступных досок |
-| `list_users` | Список сотрудников |
-| `list_leads` | Список лидов (только чтение) |
-| `get_lead` | Карточка лида (только чтение) |
+```powershell
+$env:NEVOCEAN_API_KEY = "nvo_..."
+codex mcp add nevocean --url https://nevocean.anti-flow.com/mcp --bearer-token-env-var NEVOCEAN_API_KEY
+```
 
-## Примеры запросов к Claude
+### Claude Code
 
-- «Покажи мои активные задачи»
-- «Создай задачу "Подготовить презентацию" на моей личной доске с приоритетом high»
-- «Назначь задачу 42 на Алексея»
-- «Покажи все лиды на стадии Переговоры»
-- «Завершить задачу 15»
+```powershell
+claude mcp add --transport http --scope user nevocean https://nevocean.anti-flow.com/mcp --header "Authorization: Bearer nvo_..."
+```
 
-## Безопасность
+В Claude web/desktop тот же URL можно добавить как custom connector и указать
+персональный ключ в поле авторизации.
 
-Claude действует строго в рамках прав владельца ключа — бэкенд автоматически
-применяет все проверки доступа, MCP-сервис их не обходит. Ключ не хранится в БД
-в открытом виде — только SHA-256 хеш. MCP-сервис не хранит ключи нигде: ключ
-живёт только в памяти на время обработки конкретного HTTP-запроса.
+### Gemini CLI
 
-## Локальный запуск (для разработки)
+```powershell
+gemini mcp add --transport http --scope user nevocean https://nevocean.anti-flow.com/mcp --header "Authorization: Bearer nvo_..."
+```
+
+### Другой MCP-клиент
+
+Минимальная конфигурация выглядит так (синтаксис подстановки переменных зависит
+от клиента):
+
+```json
+{
+  "mcpServers": {
+    "nevocean": {
+      "type": "http",
+      "url": "https://nevocean.anti-flow.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NEVOCEAN_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+## Инструменты
+
+| Инструмент | Режим | Назначение |
+|---|---|---|
+| `list_tasks` | read | Задачи с фильтрами по доске, исполнителю и состоянию |
+| `get_task` | read | Одна задача по ID |
+| `create_task` | write | Создать задачу, включая начало и срок |
+| `update_task` | write | Изменить основные поля и даты |
+| `assign_task` | write | Назначить исполнителей |
+| `update_task_status` | write | Переместить карточку Kanban |
+| `complete_task` | write | Завершить задачу |
+| `delete_task` | destructive | Удалить задачу с обязательным `confirm=true` |
+| `list_boards` | read | Все доступные доски и их колонки |
+| `get_board` | read | Одна доска по ID |
+| `create_board_column` | write | Добавить колонку Kanban |
+| `update_board_column` | write | Изменить колонку |
+| `reorder_board_column` | write | Переместить колонку |
+| `delete_board_column` | destructive | Удалить колонку с переносом задач |
+| `list_lab_projects` | read | NevoLabs-проекты, включая архив по запросу |
+| `get_lab_project` | read | Проект, статус, участники и `board_id` |
+| `create_lab_project` | write | Создать проект и его Kanban-доску |
+| `update_lab_project` | write | Изменить проект и синхронно переименовать доску |
+| `archive_lab_project` | destructive | Архивировать проект и скрыть доску |
+| `add_lab_project_member` | write | Добавить участника проекта |
+| `remove_lab_project_member` | write | Удалить участника проекта |
+| `list_users` | read | Сотрудники для назначения задач |
+| `list_leads` | read | CRM-лиды с фильтрами и пагинацией |
+| `get_lead` | read | Полная карточка лида |
+
+У каждого инструмента опубликованы JSON input/output schemas и MCP annotations
+(`readOnlyHint`, `idempotentHint`, `destructiveHint`), чтобы клиент мог корректно
+запрашивать подтверждение перед изменениями.
+
+## Запуск
 
 ```bash
 cd mcp-server
@@ -85,11 +112,29 @@ pip install -r requirements.txt
 BACKEND_API_URL=http://localhost:8000/api python server.py
 ```
 
-Проверка живости: `curl http://localhost:9000/healthz`.
-
-## Развёртывание на сервере
+Проверка живости:
 
 ```bash
-docker compose up -d --build mcp
-docker compose exec nginx nginx -s reload   # либо docker compose restart nginx
+curl http://localhost:9000/healthz
 ```
+
+Переменные среды:
+
+| Переменная | По умолчанию | Назначение |
+|---|---|---|
+| `BACKEND_API_URL` | `http://backend:8000/api` | Backend API |
+| `MCP_HOST` | `0.0.0.0` | Bind address |
+| `MCP_PORT` | `9000` | Порт |
+| `MCP_ALLOWED_HOSTS` | production + localhost | Разрешённые HTTP Host для защиты от DNS rebinding |
+| `MCP_ALLOWED_ORIGINS` | production + localhost | Разрешённые Origin |
+
+## Проверка
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q tests
+```
+
+Тесты проверяют health endpoint, protocol-level `tools/list`, structured output,
+annotations, маршрутизацию CRUD-вызовов и то, что отсутствие ключа или
+подтверждения разрушительной операции возвращается как `isError: true`.

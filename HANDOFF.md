@@ -7,7 +7,8 @@
 - **Деплой:** docker-compose (postgres + backend + frontend + nginx)
 
 ## Логины
-Все **админы/основатели** — пароль `admin123`. Все **сотрудники** — `staff123`.
+Стартовый пароль задаётся секретом `INITIAL_USER_PASSWORD` при первом заполнении
+пустой базы. После первого входа его нужно заменить для каждого пользователя.
 | Кто | Email | Роль |
 |---|---|---|
 | Бека | beka@nevodevs.kg | admin, основатель, Руководитель |
@@ -57,7 +58,7 @@ cd frontend && npm install && npm run dev
 
 ## Прод
 ```bash
-cp .env.example .env   # сменить POSTGRES_PASSWORD и SECRET_KEY
+cp .env.example .env   # сменить POSTGRES_PASSWORD, SECRET_KEY и INITIAL_USER_PASSWORD
 docker compose up -d --build
 ```
 
