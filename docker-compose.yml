@@ -36,6 +36,14 @@ services:
       - media:/app/media
     expose:
       - "8000"
+    networks:
+      # Explicit alias so this service resolves unambiguously even though
+      # nginx also shares the external espamed_edge network, where EspaMed
+      # has its own "backend" service — plain Docker DNS for "backend" would
+      # otherwise be ambiguous on that multi-network edge container.
+      default:
+        aliases:
+          - nevocean-backend
 
   mcp:
     build: ./mcp-server
