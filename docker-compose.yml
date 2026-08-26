@@ -71,11 +71,14 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Shared-host edge: routes espamed.anti-flow.com to the EspaMed
-      # containers over the espamed_edge network. Deployed and swapped
-      # (bootstrap -> final) from the stable host path; see EspaMed's
-      # deploy/README.md for the staging order.
-      - /opt/nevocean/shared-nginx/espamed.conf:/etc/nginx/conf.d/espamed.conf:ro
+      # Shared-host edge: mounts the host directory (not a single file) so an
+      # atomic `mv` swap of the file inside it is visible to this running
+      # container, and an absent/empty directory still leaves this mount and
+      # NevOcean's own config valid instead of Docker creating a directory at
+      # a missing single-file mount target. nginx.conf includes
+      # /etc/nginx/conf.d/shared/*.conf; see EspaMed's deploy/README.md for
+      # the staging order.
+      - /opt/nevocean/shared-nginx:/etc/nginx/conf.d/shared:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
       # Serve uploaded media directly, without going through the app.
