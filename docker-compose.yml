@@ -71,10 +71,22 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Shared-host edge: routes espamed.anti-flow.com to the EspaMed
+      # containers over the espamed_edge network. Deployed and swapped
+      # (bootstrap -> final) from the stable host path; see EspaMed's
+      # deploy/README.md for the staging order.
+      - /opt/nevocean/shared-nginx/espamed.conf:/etc/nginx/conf.d/espamed.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
       # Serve uploaded media directly, without going through the app.
       - media:/var/www/media:ro
+    networks:
+      - default
+      - espamed_edge
+
+networks:
+  espamed_edge:
+    external: true
 
 volumes:
   pgdata:
