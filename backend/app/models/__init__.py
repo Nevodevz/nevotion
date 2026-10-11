@@ -325,6 +325,25 @@ class LeadStatus(str, enum.Enum):
     archived = "archived"
 
 
+class LeadBoardColumn(Base):
+    __tablename__ = "lead_board_columns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    color: Mapped[str] = mapped_column(String(7), default="#4648d4", nullable=False)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class LeadBoardPlacement(Base):
+    __tablename__ = "lead_board_placements"
+
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), primary_key=True)
+    column_id: Mapped[int | None] = mapped_column(ForeignKey("lead_board_columns.id", ondelete="SET NULL"), nullable=True, index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class Lead(Base):
     __tablename__ = "leads"
 

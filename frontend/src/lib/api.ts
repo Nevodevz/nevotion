@@ -325,6 +325,19 @@ function leadQueryString(f?: LeadQuery): string {
   return qs ? "?" + qs : "";
 }
 
+export const leadBoardApi = {
+  get: (query?: LeadQuery) => request<import("./types").LeadBoardData>(`/lead-board${leadQueryString(query)}`),
+  createColumn: (data: { name: string; color: string }) =>
+    request<import("./types").LeadBoardColumn>("/lead-board/columns", { method: "POST", body: JSON.stringify(data) }),
+  updateColumn: (id: number, data: { name: string; color: string }) =>
+    request<import("./types").LeadBoardColumn>(`/lead-board/columns/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  moveColumn: (id: number, before_column_id: number | null) =>
+    request<import("./types").LeadBoardColumn[]>(`/lead-board/columns/${id}/move`, { method: "POST", body: JSON.stringify({ before_column_id }) }),
+  deleteColumn: (id: number) => request<void>(`/lead-board/columns/${id}`, { method: "DELETE" }),
+  moveCard: (id: number, data: import("./types").LeadBoardMove) =>
+    request<import("./types").LeadBoardCard>(`/lead-board/leads/${id}/move`, { method: "PATCH", body: JSON.stringify(data) }),
+};
+
 export const leadApi = {
   stats: (f?: { date_from?: string; date_to?: string }) => {
     const p = new URLSearchParams();

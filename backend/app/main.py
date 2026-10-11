@@ -15,7 +15,7 @@ from app.middleware import last_seen_middleware
 from app.routers import (
     auth, users, projects, tasks, departments, boards, sales, marketing,
     search, notifications, meetings, bug_reports, leads, finance, payroll, analytics,
-    api_keys, lab_projects, calendar as calendar_router,
+    api_keys, lab_projects, lead_board, calendar as calendar_router,
 )
 from app.routers import settings as settings_router
 
@@ -67,6 +67,7 @@ app.include_router(meetings.router)
 app.include_router(bug_reports.router)
 app.include_router(settings_router.router)
 app.include_router(leads.router)
+app.include_router(lead_board.router)
 app.include_router(finance.router)
 app.include_router(payroll.router)
 app.include_router(analytics.router)
