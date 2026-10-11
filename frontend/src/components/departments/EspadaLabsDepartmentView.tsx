@@ -143,7 +143,7 @@ function ProjectModal({ open, project, allUsers, onClose, onSaved }: ProjectModa
   );
 }
 
-export function NevoLabsDepartmentView({ dept, departments }: { dept: Department; departments: Department[] }) {
+export function EspadaLabsDepartmentView({ dept, departments }: { dept: Department; departments: Department[] }) {
   const { user: currentUser, isAdmin, isFounder } = useApp();
   const toast = useToast();
   const router = useRouter();
@@ -202,7 +202,7 @@ export function NevoLabsDepartmentView({ dept, departments }: { dept: Department
         <div>
           <div className="page-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 28, color: "var(--primary)" }}>science</span>
-            NevoLabs
+            Espada Labs
           </div>
           <div className="page-desc">Внутренние R&amp;D-проекты · Kanban на каждый проект</div>
         </div>
@@ -231,7 +231,7 @@ export function NevoLabsDepartmentView({ dept, departments }: { dept: Department
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 20px", color: "var(--text3)" }}>
           <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 12 }}>science</span>
           <div style={{ fontSize: 16, fontWeight: 500, color: "var(--text2)" }}>Проектов пока нет</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Создайте первый R&amp;D-проект NevoLabs</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Создайте первый R&amp;D-проект Espada Labs</div>
         </div>
       ) : (
         <div className="card" style={{ overflow: "hidden" }}>
@@ -256,7 +256,7 @@ export function NevoLabsDepartmentView({ dept, departments }: { dept: Department
                       className="nlab-row"
                       onClick={() => {
                         if (canBoard && p.board_id) {
-                          router.push(`/dept/nevolabs/${p.id}`);
+                          router.push(`/dept/espadalabs/${p.id}`);
                         }
                       }}
                       style={{ cursor: canBoard && p.board_id ? "pointer" : "default", opacity: p.is_archived ? 0.55 : 1 }}
@@ -314,7 +314,7 @@ export function NevoLabsDepartmentView({ dept, departments }: { dept: Department
                             </button>
                             {canBoard && p.board_id && (
                               <button className="row-act" title="Открыть Kanban"
-                                onClick={() => router.push(`/dept/nevolabs/${p.id}`)}>
+                                onClick={() => router.push(`/dept/espadalabs/${p.id}`)}>
                                 <span className="material-symbols-outlined" style={{ fontSize: 17 }}>view_kanban</span>
                               </button>
                             )}
@@ -322,7 +322,7 @@ export function NevoLabsDepartmentView({ dept, departments }: { dept: Department
                         )}
                         {canBoard && p.board_id && p.is_archived && (
                           <button className="row-act" title="Открыть Kanban"
-                            onClick={() => router.push(`/dept/nevolabs/${p.id}`)}>
+                            onClick={() => router.push(`/dept/espadalabs/${p.id}`)}>
                             <span className="material-symbols-outlined" style={{ fontSize: 17 }}>view_kanban</span>
                           </button>
                         )}

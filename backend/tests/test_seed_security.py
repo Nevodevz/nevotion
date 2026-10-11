@@ -24,10 +24,10 @@ def test_development_seed_keeps_local_fallback(monkeypatch):
     monkeypatch.setenv("ENVIRONMENT", "development")
     monkeypatch.delenv("INITIAL_USER_PASSWORD", raising=False)
 
-    assert _initial_user_password() == "Nevo2026!"
+    assert _initial_user_password() == "Espada2026!"
 
 
 def test_seed_has_no_hard_coded_password_constant_reference():
-    seed_source = Path(__file__).resolve().parents[1].joinpath("app", "seed.py").read_text()
+    seed_source = Path(__file__).resolve().parents[1].joinpath("app", "seed.py").read_text(encoding="utf-8")
 
     assert "STAFF_PW" not in seed_source

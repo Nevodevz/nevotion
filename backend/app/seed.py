@@ -1,4 +1,4 @@
-"""Seed NevoDevs database. Run: python -m app.seed"""
+"""Seed Espada database. Run: python -m app.seed"""
 import os
 from datetime import date, timedelta, datetime, timezone
 
@@ -85,7 +85,13 @@ def _initial_user_password() -> str:
         return password
     if os.getenv("ENVIRONMENT", "development").lower() == "production":
         raise RuntimeError("INITIAL_USER_PASSWORD must be set in production")
-    return "Nevo2026!"
+    return "Espada2026!"
+
+
+def _find_seed_user(db, username: str) -> User | None:
+    # A product rename must not change existing employees' login identities.
+    current = db.query(User).filter_by(email=f"{username}@espada.kg").first()
+    return current or db.query(User).filter_by(email=f"{username}@nevodevs.kg").first()
 
 
 def make_board(db, name, kind, owner_id=None, department_id=None, cols=None):
@@ -133,29 +139,29 @@ def seed():
         )
 
     # Founders (admin=True)
-    beka    = U("Бека",     "beka@nevodevs.kg",     "Руководитель",        "indigo",  founder=True, admin=True)
-    erbol   = U("Эрбол",    "erbol@nevodevs.kg",    "Тимлид",              "green",   founder=True, admin=True)
-    arslan  = U("Арслан",   "arslan@nevodevs.kg",   "Клоузер",             "orange",  founder=True, admin=True)
-    abylay  = U("Абылай",   "abylay@nevodevs.kg",   "Руководитель продаж", "yellow",  founder=True, admin=True)  # сеттер
-    nazar   = U("Назар",    "nazar@nevodevs.kg",    "Маркетинг",           "red",     founder=True, admin=True)
-    timur   = U("Тимур",    "timur@nevodevs.kg",    "Главный тех лид",     "indigo",  founder=True, admin=True)
-    adahan  = U("Адахан",   "adahan@nevodevs.kg",   "Финансовый директор", "green",   founder=True, admin=True)
+    beka    = U("Бека",     "beka@espada.kg",     "Руководитель",        "indigo",  founder=True, admin=True)
+    erbol   = U("Эрбол",    "erbol@espada.kg",    "Тимлид",              "green",   founder=True, admin=True)
+    arslan  = U("Арслан",   "arslan@espada.kg",   "Клоузер",             "orange",  founder=True, admin=True)
+    abylay  = U("Абылай",   "abylay@espada.kg",   "Руководитель продаж", "yellow",  founder=True, admin=True)  # сеттер
+    nazar   = U("Назар",    "nazar@espada.kg",    "Маркетинг",           "red",     founder=True, admin=True)
+    timur   = U("Тимур",    "timur@espada.kg",    "Главный тех лид",     "indigo",  founder=True, admin=True)
+    adahan  = U("Адахан",   "adahan@espada.kg",   "Финансовый директор", "green",   founder=True, admin=True)
     # Prompters
-    azamat  = U("Азамат",   "azamat@nevodevs.kg",   "Промпт-инженер",      "indigo")
-    ariet   = U("Ариет",    "ariet@nevodevs.kg",    "Промпт-инженер",      "green")
-    abdulla = U("Абдулла",  "abdulla@nevodevs.kg",  "Промпт-инженер",      "orange")
-    turat   = U("Туратбек", "turat@nevodevs.kg",    "Промпт-инженер",      "yellow")
-    emirlan = U("Эмирлан",  "emirlan@nevodevs.kg",  "Промпт-инженер",      "red")
+    azamat  = U("Азамат",   "azamat@espada.kg",   "Промпт-инженер",      "indigo")
+    ariet   = U("Ариет",    "ariet@espada.kg",    "Промпт-инженер",      "green")
+    abdulla = U("Абдулла",  "abdulla@espada.kg",  "Промпт-инженер",      "orange")
+    turat   = U("Туратбек", "turat@espada.kg",    "Промпт-инженер",      "yellow")
+    emirlan = U("Эмирлан",  "emirlan@espada.kg",  "Промпт-инженер",      "red")
     # Backenders
-    talgat  = U("Талгат",   "talgat@nevodevs.kg",   "Бэкенд",              "indigo")
-    bektur  = U("Бектур",   "bektur@nevodevs.kg",   "Бэкенд",              "green")
-    miro    = U("Мирослав", "miroslav@nevodevs.kg", "Бэкенд",              "orange")
+    talgat  = U("Талгат",   "talgat@espada.kg",   "Бэкенд",              "indigo")
+    bektur  = U("Бектур",   "bektur@espada.kg",   "Бэкенд",              "green")
+    miro    = U("Мирослав", "miroslav@espada.kg", "Бэкенд",              "orange")
     # Sales
-    rahima  = U("Рахима",   "rahima@nevodevs.kg",   "Сеттер",              "red")
-    minai   = U("Минай",    "minai@nevodevs.kg",    "Сеттер",              "yellow")
-    marlen  = U("Марлен",   "marlen@nevodevs.kg",   "Клоузер",             "indigo")
+    rahima  = U("Рахима",   "rahima@espada.kg",   "Сеттер",              "red")
+    minai   = U("Минай",    "minai@espada.kg",    "Сеттер",              "yellow")
+    marlen  = U("Марлен",   "marlen@espada.kg",   "Клоузер",             "indigo")
     # QCC
-    ahmad   = U("Ахмад",    "ahmad@nevodevs.kg",    "Менеджер качества",   "indigo")
+    ahmad   = U("Ахмад",    "ahmad@espada.kg",    "Менеджер качества",   "indigo")
 
     all_users = [beka, erbol, arslan, abylay, nazar, timur, adahan,
                  azamat, ariet, abdulla, turat, emirlan,
@@ -267,7 +273,7 @@ def seed():
     db.add(MarketingRecord(user_id=nazar.id, record_date=today,
                            fields={"идея":"Reels про кейс Эл Суши","сценарий":"Готов","монтаж":"В работе","планировка":"Неделя 23"}))
 
-    depts["about"].content = "NevoDevs — команда по разработке AI-чатботов для бизнеса в Бишкеке.\n\nЗаполните этот раздел через редактирование (доступно руководителю)."
+    depts["about"].content = "Espada — команда по разработке AI-чатботов для бизнеса в Бишкеке.\n\nЗаполните этот раздел через редактирование (доступно руководителю)."
 
     db.commit()
     db.close()
@@ -287,25 +293,25 @@ def seed():
     print("  Стартовый пароль задан через INITIAL_USER_PASSWORD.")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     accounts = [
-        ("Бека",     "beka@nevodevs.kg",     "Руководитель"),
-        ("Эрбол",    "erbol@nevodevs.kg",    "Тимлид"),
-        ("Арслан",   "arslan@nevodevs.kg",   "Руководитель продаж"),
-        ("Абылай",   "abylay@nevodevs.kg",   "Руководитель продаж"),
-        ("Назар",    "nazar@nevodevs.kg",    "Маркетинг"),
-        ("Тимур",    "timur@nevodevs.kg",    "Главный тех лид"),
-        ("Адахан",   "adahan@nevodevs.kg",   "Финансовый директор"),
-        ("Азамат",   "azamat@nevodevs.kg",   "Промпт-инженер"),
-        ("Ариет",    "ariet@nevodevs.kg",    "Промпт-инженер"),
-        ("Абдулла",  "abdulla@nevodevs.kg",  "Промпт-инженер"),
-        ("Туратбек", "turat@nevodevs.kg",    "Промпт-инженер"),
-        ("Эмирлан",  "emirlan@nevodevs.kg",  "Промпт-инженер"),
-        ("Талгат",   "talgat@nevodevs.kg",   "Бэкенд"),
-        ("Бектур",   "bektur@nevodevs.kg",   "Бэкенд"),
-        ("Мирослав", "miroslav@nevodevs.kg", "Бэкенд"),
-        ("Рахима",   "rahima@nevodevs.kg",   "Сеттер"),
-        ("Минай",    "minai@nevodevs.kg",    "Сеттер"),
-        ("Марлен",   "marlen@nevodevs.kg",   "Клоузер"),
-        ("Ахмад",    "ahmad@nevodevs.kg",    "Менеджер качества"),
+        ("Бека",     "beka@espada.kg",     "Руководитель"),
+        ("Эрбол",    "erbol@espada.kg",    "Тимлид"),
+        ("Арслан",   "arslan@espada.kg",   "Руководитель продаж"),
+        ("Абылай",   "abylay@espada.kg",   "Руководитель продаж"),
+        ("Назар",    "nazar@espada.kg",    "Маркетинг"),
+        ("Тимур",    "timur@espada.kg",    "Главный тех лид"),
+        ("Адахан",   "adahan@espada.kg",   "Финансовый директор"),
+        ("Азамат",   "azamat@espada.kg",   "Промпт-инженер"),
+        ("Ариет",    "ariet@espada.kg",    "Промпт-инженер"),
+        ("Абдулла",  "abdulla@espada.kg",  "Промпт-инженер"),
+        ("Туратбек", "turat@espada.kg",    "Промпт-инженер"),
+        ("Эмирлан",  "emirlan@espada.kg",  "Промпт-инженер"),
+        ("Талгат",   "talgat@espada.kg",   "Бэкенд"),
+        ("Бектур",   "bektur@espada.kg",   "Бэкенд"),
+        ("Мирослав", "miroslav@espada.kg", "Бэкенд"),
+        ("Рахима",   "rahima@espada.kg",   "Сеттер"),
+        ("Минай",    "minai@espada.kg",    "Сеттер"),
+        ("Марлен",   "marlen@espada.kg",   "Клоузер"),
+        ("Ахмад",    "ahmad@espada.kg",    "Менеджер качества"),
     ]
     for name, email, pos in accounts:
         print(f"  {name:<12} {email:<28} {pos}")
@@ -466,7 +472,7 @@ def seed_dev_payroll():
         db.commit()
 
         # Adakhan → also in sales department so he appears in closer dropdowns
-        adahan = db.query(User).filter_by(email="adahan@nevodevs.kg").first()
+        adahan = _find_seed_user(db, "adahan")
         sales_dept = db.query(Department).filter_by(slug="sales").first()
         if adahan and sales_dept and adahan not in sales_dept.members:
             sales_dept.members.append(adahan)
@@ -531,30 +537,30 @@ def seed_monthly_plan():
         db.close()
 
 
-def seed_nevolabs():
-    """Create NevoLabs department, add Erbol (Руководитель) and Atif (Легенда). Idempotent."""
+def seed_espadalabs():
+    """Create Espada Labs department, add Erbol (Руководитель) and Atif (Легенда). Idempotent."""
     db = SessionLocal()
     try:
         # Create department if absent
-        dept = db.query(Department).filter_by(slug="nevolabs").first()
+        dept = db.query(Department).filter_by(slug="espadalabs").first()
         if not dept:
             dept = Department(
-                name="NevoLabs",
-                slug="nevolabs",
+                name="Espada Labs",
+                slug="espadalabs",
                 icon="science",
-                kind="nevolabs",
+                kind="espadalabs",
                 admin_only=False,
                 content="",
                 embed_url="",
             )
             db.add(dept)
             db.flush()
-            print("✅ NevoLabs department created")
+            print("✅ Espada Labs department created")
         else:
-            print("ℹ️  NevoLabs department already exists")
+            print("ℹ️  Espada Labs department already exists")
 
-        # Erbol: add to nevolabs, change position, remove from dev
-        erbol = db.query(User).filter_by(email="erbol@nevodevs.kg").first()
+        # Erbol: add to espadalabs, change position, remove from dev
+        erbol = _find_seed_user(db, "erbol")
         if erbol:
             dev_dept = db.query(Department).filter_by(slug="dev").first()
             if dev_dept and erbol in dev_dept.members:
@@ -563,13 +569,13 @@ def seed_nevolabs():
             erbol.position = "Руководитель"
             if erbol not in dept.members:
                 dept.members.append(erbol)
-                print("✅ Erbol added to NevoLabs as Руководитель")
+                print("✅ Erbol added to Espada Labs as Руководитель")
             else:
-                print("ℹ️  Erbol already in NevoLabs")
+                print("ℹ️  Erbol already in Espada Labs")
         else:
-            print("⚠️  Erbol (erbol@nevodevs.kg) not found")
+            print("⚠️  Erbol (erbol@espada.kg) not found")
 
-        # Atif: create if absent, add to nevolabs
+        # Atif: create if absent, add to espadalabs
         atif = db.query(User).filter_by(email="abdulatif.works@gmail.com").first()
         if not atif:
             from app.core.security import hash_password
@@ -598,10 +604,10 @@ def seed_nevolabs():
 
         if atif and atif not in dept.members:
             dept.members.append(atif)
-            print("✅ Atif added to NevoLabs")
+            print("✅ Atif added to Espada Labs")
 
         db.commit()
-        print("✅ seed_nevolabs complete")
+        print("✅ seed_espadalabs complete")
     finally:
         db.close()
 
@@ -611,4 +617,4 @@ if __name__ == "__main__":
     seed_ad_expenses()
     seed_monthly_plan()
     seed_dev_payroll()
-    seed_nevolabs()
+    seed_espadalabs()

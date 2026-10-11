@@ -10,7 +10,7 @@ from pathlib import Path
 # Import the app package from the backend root regardless of the pytest rootdir.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-os.environ.setdefault("MEDIA_ROOT", "/tmp/nevocean-test-media")
+os.environ.setdefault("MEDIA_ROOT", "/tmp/espada-test-media")
 
 import pytest
 from fastapi.testclient import TestClient

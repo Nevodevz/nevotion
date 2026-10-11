@@ -21,6 +21,9 @@ def list_departments(db: Session = Depends(get_db), current: User = Depends(get_
 
 @router.get("/{slug}", response_model=DepartmentOut)
 def get_department(slug: str, db: Session = Depends(get_db), current: User = Depends(get_current_user)):
+    # Existing API clients can keep their old department URLs.
+    if slug == "nevolabs":
+        slug = "espadalabs"
     dept = db.query(Department).filter(Department.slug == slug).first()
     if not dept:
         raise HTTPException(404, "Раздел не найден")

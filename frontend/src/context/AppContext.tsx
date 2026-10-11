@@ -5,6 +5,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { api, clearToken, getToken } from "@/lib/api";
+import { readStoredValue } from "@/lib/storage";
 import type { User } from "@/lib/types";
 
 type Theme = "dark" | "light";
@@ -26,6 +27,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<Theme>("light");
+  const [themeRestored, setThemeRestored] = useState(false);
   const router = useRouter();
 
   const refreshUser = useCallback(async () => {
@@ -38,9 +40,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const saved = (typeof window !== "undefined" &&
-      localStorage.getItem("nevodevs_theme")) as Theme | null;
+    const saved = readStoredValue("espada_theme", "nevodevs_theme") as Theme | null;
     if (saved) setTheme(saved);
+    setThemeRestored(true);
 
     if (!getToken()) {
       setLoading(false);
@@ -51,8 +53,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    if (typeof window !== "undefined") localStorage.setItem("nevodevs_theme", theme);
-  }, [theme]);
+    if (themeRestored) localStorage.setItem("espada_theme", theme);
+  }, [theme, themeRestored]);
 
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 

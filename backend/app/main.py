@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="NevoDevs API", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="Espada API", version="2.1.0", lifespan=lifespan)
 
 # Rate limit error handler
 app.state.limiter = limiter

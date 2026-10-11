@@ -1,4 +1,4 @@
-"""NevoLabs department and lab projects
+"""Espada Labs department and lab projects
 
 Revision ID: 017
 Revises: 016

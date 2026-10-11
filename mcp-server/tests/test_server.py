@@ -71,9 +71,26 @@ def test_missing_api_key_is_reported_as_mcp_tool_error(client):
 
 
 def test_api_key_header_parsing_supports_common_clients():
-    assert server._extract_api_key({"Authorization": "Bearer nvo_secret"}) == "nvo_secret"
-    assert server._extract_api_key({"x-api-key": " nvo_other "}) == "nvo_other"
+    assert server._extract_api_key({"Authorization": "Bearer esp_secret"}) == "esp_secret"
+    assert server._extract_api_key({"x-api-key": " esp_other "}) == "esp_other"
+    assert server._extract_api_key({"Authorization": "Bearer nvo_existing"}) == "nvo_existing"
     assert server._extract_api_key({}) is None
+
+
+def test_initialization_advertises_espada(client):
+    response = client.post(
+        "/mcp", headers=MCP_HEADERS,
+        json={
+            "jsonrpc": "2.0", "id": 99, "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-11-25", "capabilities": {},
+                "clientInfo": {"name": "branding-test", "version": "1.0.0"},
+            },
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["result"]["serverInfo"]["name"] == "espada"
+    assert response.json()["result"]["serverInfo"]["title"] == "Espada Workspace"
 
 
 def test_project_and_board_crud_tools_forward_typed_requests(client, monkeypatch):
@@ -91,7 +108,7 @@ def test_project_and_board_crud_tools_forward_typed_requests(client, monkeypatch
         return {"ok": True}
 
     monkeypatch.setattr(server, "_call", fake_call)
-    headers = {**MCP_HEADERS, "X-API-Key": "nvo_test"}
+    headers = {**MCP_HEADERS, "X-API-Key": "esp_test"}
 
     created = client.post(
         "/mcp",

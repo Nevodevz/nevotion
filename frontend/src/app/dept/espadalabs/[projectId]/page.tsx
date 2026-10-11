@@ -56,7 +56,7 @@ export default function LabProjectKanbanPage() {
   function render() {
     if (loading) return <div style={{ color: "var(--text3)", padding: "60px 0", textAlign: "center" }}>Загрузка…</div>;
     if (denied) return (
-      <Empty icon="lock" title="Нет доступа" desc="Доступ к этому проекту ограничен. Участники проекта, члены NevoLabs и основатели." />
+      <Empty icon="lock" title="Нет доступа" desc="Доступ к этому проекту ограничен. Участники проекта, члены Espada Labs и основатели." />
     );
     if (error || !project) return (
       <Empty icon="error_outline" title="Проект не найден" desc={error ?? "Проект не существует или был удалён."} />
@@ -66,8 +66,8 @@ export default function LabProjectKanbanPage() {
       <div>
         {/* Breadcrumb */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, fontSize: 13, color: "var(--text3)" }}>
-          <Link href="/dept/nevolabs" style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 500 }}>
-            NevoLabs
+          <Link href="/dept/espadalabs" style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 500 }}>
+            Espada Labs
           </Link>
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>chevron_right</span>
           <span style={{ color: "var(--text)" }}>{project.name}</span>
@@ -99,7 +99,7 @@ export default function LabProjectKanbanPage() {
             )}
           </div>
           <button
-            onClick={() => router.push("/dept/nevolabs")}
+            onClick={() => router.push("/dept/espadalabs")}
             style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--bg3)",
               border: "1px solid var(--border)", borderRadius: 8, padding: "8px 14px",
               color: "var(--text2)", cursor: "pointer", fontSize: 13, fontFamily: "inherit",
@@ -128,7 +128,7 @@ export default function LabProjectKanbanPage() {
   }
 
   return (
-    <Shell title={project?.name ?? "NevoLabs"}>
+    <Shell title={project?.name ?? "Espada Labs"}>
       {render()}
     </Shell>
   );

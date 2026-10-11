@@ -67,7 +67,7 @@ def _can_view_board(user: User, board: Board, db: Session | None = None) -> bool
         lab_proj = None
         if db is not None:
             lab_proj = db.query(LabProject).filter(LabProject.board_id == board.id).first()
-            # Archiving is the domain-level delete operation for NevoLabs.
+            # Archiving is the domain-level delete operation for Espada Labs.
             # Its board remains in the database for recovery, but disappears
             # from normal board discovery and cannot be opened directly.
             if lab_proj and lab_proj.is_archived:
@@ -76,8 +76,8 @@ def _can_view_board(user: User, board: Board, db: Session | None = None) -> bool
             return user.is_founder or user.role == Role.admin
         if user.is_founder or user.role == Role.admin:
             return True
-        nevolabs = db.query(Department).filter(Department.slug == "nevolabs").first()
-        if nevolabs and any(m.id == user.id for m in nevolabs.members):
+        espadalabs = db.query(Department).filter(Department.slug == "espadalabs").first()
+        if espadalabs and any(m.id == user.id for m in espadalabs.members):
             return True
         if lab_proj:
             return db.query(LabProjectMember).filter(

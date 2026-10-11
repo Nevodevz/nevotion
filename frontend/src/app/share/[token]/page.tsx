@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PublicBoardClient } from "./PublicBoardClient";
 
 export const metadata: Metadata = {
-  title: "План работ · NevOcean",
+  title: "План работ · Espada",
   robots: { index: false, follow: false },
 };
 

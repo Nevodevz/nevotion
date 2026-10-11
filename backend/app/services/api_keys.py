@@ -14,7 +14,7 @@ def _hash_key(plain: str) -> str:
 def generate_key() -> tuple[str, str, str]:
     """Return (plain_key, key_hash, key_prefix)."""
     random_part = secrets.token_urlsafe(32)
-    plain = f"nvo_{random_part}"
+    plain = f"esp_{random_part}"
     key_hash = _hash_key(plain)
     prefix = plain[:12]
     return plain, key_hash, prefix

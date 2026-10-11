@@ -103,7 +103,7 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
     return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text3)" }}>Загрузка…</div>;
   }
 
-  const pageTitle = title ?? NAV_MAIN.find((n) => pathname.startsWith(n.href))?.label ?? "NevOcean";
+  const pageTitle = title ?? NAV_MAIN.find((n) => pathname.startsWith(n.href))?.label ?? "Espada";
   const totalNotifs = notifs.count;
 
   function handleSearchSelect(item: any) {
@@ -128,8 +128,8 @@ export function Shell({ children, title }: { children: React.ReactNode; title?: 
       {/* SIDEBAR */}
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-brand">
-          <div className="brand-logo">N</div>
-          <div><div className="brand-name">NevOcean</div><div className="brand-sub">AI Workspace</div></div>
+          <div className="brand-logo">E</div>
+          <div><div className="brand-name">Espada</div><div className="brand-sub">AI Workspace</div></div>
         </div>
 
         <nav className="sidebar-nav">

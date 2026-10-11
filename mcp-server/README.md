@@ -1,4 +1,4 @@
-# NevOcean MCP Server
+# Espada MCP Server
 
 Универсальный remote MCP-сервис на официальном Python SDK 2.x. Работает по
 Streamable HTTP в stateless-режиме и подходит любому клиенту, который умеет
@@ -7,17 +7,22 @@ Streamable HTTP в stateless-режиме и подходит любому кл�
 Production URL:
 
 ```text
-https://nevocean.anti-flow.com/mcp
+https://espada.anti-flow.com/mcp
 ```
 
 ## Аутентификация
 
-Каждый AI-клиент действует от имени владельца персонального ключа `nvo_...`,
-созданного в **Профиль → API-ключи**. Поддерживаются оба заголовка:
+Каждый AI-клиент действует от имени владельца персонального ключа `esp_...`,
+созданного в **Профиль → API-ключи**.
+
+Ранее выданные ключи `nvo_...` продолжают работать. При смене домена обновите
+URL подключения; повторно выпускать действующий ключ не требуется.
+
+Поддерживаются оба заголовка:
 
 ```http
-Authorization: Bearer nvo_...
-X-API-Key: nvo_...
+Authorization: Bearer esp_...
+X-API-Key: esp_...
 ```
 
 MCP-сервис не хранит ключ. Он передаёт его backend API, поэтому для AI действуют
@@ -33,14 +38,14 @@ Codex умеет читать Bearer-токен из переменной сре
 в команду или `config.toml`:
 
 ```powershell
-$env:NEVOCEAN_API_KEY = "nvo_..."
-codex mcp add nevocean --url https://nevocean.anti-flow.com/mcp --bearer-token-env-var NEVOCEAN_API_KEY
+$env:ESPADA_API_KEY = "esp_..."
+codex mcp add espada --url https://espada.anti-flow.com/mcp --bearer-token-env-var ESPADA_API_KEY
 ```
 
 ### Claude Code
 
 ```powershell
-claude mcp add --transport http --scope user nevocean https://nevocean.anti-flow.com/mcp --header "Authorization: Bearer nvo_..."
+claude mcp add --transport http --scope user espada https://espada.anti-flow.com/mcp --header "Authorization: Bearer esp_..."
 ```
 
 В Claude web/desktop тот же URL можно добавить как custom connector и указать
@@ -49,7 +54,7 @@ claude mcp add --transport http --scope user nevocean https://nevocean.anti-flow
 ### Gemini CLI
 
 ```powershell
-gemini mcp add --transport http --scope user nevocean https://nevocean.anti-flow.com/mcp --header "Authorization: Bearer nvo_..."
+gemini mcp add --transport http --scope user espada https://espada.anti-flow.com/mcp --header "Authorization: Bearer esp_..."
 ```
 
 ### Другой MCP-клиент
@@ -60,11 +65,11 @@ gemini mcp add --transport http --scope user nevocean https://nevocean.anti-flow
 ```json
 {
   "mcpServers": {
-    "nevocean": {
+    "espada": {
       "type": "http",
-      "url": "https://nevocean.anti-flow.com/mcp",
+      "url": "https://espada.anti-flow.com/mcp",
       "headers": {
-        "Authorization": "Bearer ${NEVOCEAN_API_KEY}"
+        "Authorization": "Bearer ${ESPADA_API_KEY}"
       }
     }
   }
@@ -89,7 +94,7 @@ gemini mcp add --transport http --scope user nevocean https://nevocean.anti-flow
 | `update_board_column` | write | Изменить колонку |
 | `reorder_board_column` | write | Переместить колонку |
 | `delete_board_column` | destructive | Удалить колонку с переносом задач |
-| `list_lab_projects` | read | NevoLabs-проекты, включая архив по запросу |
+| `list_lab_projects` | read | Espada Labs-проекты, включая архив по запросу |
 | `get_lab_project` | read | Проект, статус, участники и `board_id` |
 | `create_lab_project` | write | Создать проект и его Kanban-доску |
 | `update_lab_project` | write | Изменить проект и синхронно переименовать доску |

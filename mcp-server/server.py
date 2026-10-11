@@ -1,4 +1,4 @@
-"""NevOcean MCP server for any Streamable HTTP compatible AI client.
+"""Espada MCP server for any Streamable HTTP compatible AI client.
 
 The server is intentionally a thin, stateless adapter. Every tool forwards the
 caller's personal API key to the backend, where the same authorization rules as
@@ -31,11 +31,11 @@ def _csv_env(name: str, default: str) -> list[str]:
 
 ALLOWED_HOSTS = _csv_env(
     "MCP_ALLOWED_HOSTS",
-    "nevocean.anti-flow.com,localhost:9000,127.0.0.1:9000,testserver",
+    "espada.anti-flow.com,localhost:9000,127.0.0.1:9000,testserver",
 )
 ALLOWED_ORIGINS = _csv_env(
     "MCP_ALLOWED_ORIGINS",
-    "https://nevocean.anti-flow.com,http://localhost:9000",
+    "https://espada.anti-flow.com,http://localhost:9000",
 )
 
 READ_ONLY = ToolAnnotations(
@@ -64,9 +64,9 @@ DELETE = ToolAnnotations(
 )
 
 mcp = MCPServer(
-    name="nevocean",
-    title="NevOcean Workspace",
-    description="Доски, задачи, сотрудники и CRM NevOcean через персональный API-ключ.",
+    name="espada",
+    title="Espada Workspace",
+    description="Доски, задачи, сотрудники и CRM Espada через персональный API-ключ.",
     instructions=(
         "Работайте только с сущностями, доступными владельцу API-ключа. "
         "Перед изменением задачи сначала прочитайте задачу и доску. "
@@ -105,8 +105,8 @@ async def _call(ctx: Context, method: str, path: str, **kwargs: Any) -> Any:
     api_key = _extract_api_key(ctx.headers)
     if not api_key:
         raise ToolError(
-            "Не передан API-ключ. Настройте Authorization: Bearer <nvo_...> "
-            "или X-API-Key: <nvo_...>."
+            "Не передан API-ключ. Настройте Authorization: Bearer <esp_...> "
+            "или X-API-Key: <esp_...>."
         )
 
     headers = {"X-API-Key": api_key, "Accept": "application/json"}
@@ -118,7 +118,7 @@ async def _call(ctx: Context, method: str, path: str, **kwargs: Any) -> Any:
         ) as client:
             response = await client.request(method, path, **kwargs)
     except httpx.RequestError as exc:
-        raise ToolError(f"Backend NevOcean недоступен: {exc.__class__.__name__}") from exc
+        raise ToolError(f"Backend Espada недоступен: {exc.__class__.__name__}") from exc
 
     if not response.is_success:
         detail = _error_detail(response)
@@ -128,7 +128,7 @@ async def _call(ctx: Context, method: str, path: str, **kwargs: Any) -> Any:
             raise ToolError(f"Нет прав: {detail}")
         if response.status_code == 404:
             raise ToolError(f"Не найдено: {detail}")
-        raise ToolError(f"NevOcean API вернул HTTP {response.status_code}: {detail}")
+        raise ToolError(f"Espada API вернул HTTP {response.status_code}: {detail}")
     if response.status_code == 204:
         return {"ok": True}
     return response.json()
@@ -151,7 +151,7 @@ async def list_tasks(
         params["assignee_id"] = assignee_id
     tasks = await _call(ctx, "GET", "/tasks", params=params)
     if not isinstance(tasks, list):
-        raise ToolError("NevOcean API вернул неожиданный формат списка задач")
+        raise ToolError("Espada API вернул неожиданный формат списка задач")
 
     if status:
         today = date.today().isoformat()
@@ -178,7 +178,7 @@ async def get_task(ctx: Context, task_id: int) -> dict[str, Any]:
     """Получить одну задачу по ID с проверкой прав владельца ключа."""
     result = await _call(ctx, "GET", f"/tasks/{task_id}")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат задачи")
+        raise ToolError("Espada API вернул неожиданный формат задачи")
     return result
 
 
@@ -217,7 +217,7 @@ async def create_task(
             body[key] = value
     result = await _call(ctx, "POST", "/tasks", json=body)
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат задачи")
+        raise ToolError("Espada API вернул неожиданный формат задачи")
     return result
 
 
@@ -255,7 +255,7 @@ async def update_task(
         raise ToolError("Не передано ни одного изменения")
     result = await _call(ctx, "PATCH", f"/tasks/{task_id}", json=body)
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат задачи")
+        raise ToolError("Espada API вернул неожиданный формат задачи")
     return result
 
 
@@ -264,7 +264,7 @@ async def assign_task(ctx: Context, task_id: int, assignee_ids: list[int]) -> di
     """Назначить или заменить исполнителей задачи."""
     result = await _call(ctx, "PATCH", f"/tasks/{task_id}", json={"assignee_ids": assignee_ids})
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат задачи")
+        raise ToolError("Espada API вернул неожиданный формат задачи")
     return result
 
 
@@ -283,7 +283,7 @@ async def update_task_status(
         json={"column_id": column_id, "position": position},
     )
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат перемещения")
+        raise ToolError("Espada API вернул неожиданный формат перемещения")
     return result
 
 
@@ -292,7 +292,7 @@ async def complete_task(ctx: Context, task_id: int) -> dict[str, Any]:
     """Завершить задачу и переместить её в первую done-колонку."""
     result = await _call(ctx, "PATCH", f"/tasks/{task_id}/complete")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат задачи")
+        raise ToolError("Espada API вернул неожиданный формат задачи")
     return result
 
 
@@ -303,7 +303,7 @@ async def delete_task(ctx: Context, task_id: int, confirm: bool = False) -> dict
         raise ToolError("Удаление задачи требует confirm=true")
     result = await _call(ctx, "DELETE", f"/tasks/{task_id}")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный результат удаления задачи")
+        raise ToolError("Espada API вернул неожиданный результат удаления задачи")
     return result
 
 
@@ -312,7 +312,7 @@ async def list_boards(ctx: Context) -> list[dict[str, Any]]:
     """Все доски, доступные владельцу API-ключа, вместе с колонками."""
     result = await _call(ctx, "GET", "/boards")
     if not isinstance(result, list):
-        raise ToolError("NevOcean API вернул неожиданный формат списка досок")
+        raise ToolError("Espada API вернул неожиданный формат списка досок")
     return result
 
 
@@ -321,7 +321,7 @@ async def get_board(ctx: Context, board_id: int) -> dict[str, Any]:
     """Получить доску и её колонки по ID."""
     result = await _call(ctx, "GET", f"/boards/{board_id}")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат доски")
+        raise ToolError("Espada API вернул неожиданный формат доски")
     return result
 
 
@@ -341,7 +341,7 @@ async def create_board_column(
         json={"name": name, "color": color, "is_done": is_done},
     )
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат колонки")
+        raise ToolError("Espada API вернул неожиданный формат колонки")
     return result
 
 
@@ -363,7 +363,7 @@ async def update_board_column(
         raise ToolError("Не передано ни одного изменения колонки")
     result = await _call(ctx, "PATCH", f"/boards/columns/{column_id}", json=body)
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат колонки")
+        raise ToolError("Espada API вернул неожиданный формат колонки")
     return result
 
 
@@ -383,7 +383,7 @@ async def reorder_board_column(
         params={"new_position": new_position},
     )
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат колонки")
+        raise ToolError("Espada API вернул неожиданный формат колонки")
     return result
 
 
@@ -398,7 +398,7 @@ async def delete_board_column(
         raise ToolError("Удаление колонки требует confirm=true")
     result = await _call(ctx, "DELETE", f"/boards/columns/{column_id}")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный результат удаления колонки")
+        raise ToolError("Espada API вернул неожиданный результат удаления колонки")
     return result
 
 
@@ -407,7 +407,7 @@ async def list_lab_projects(
     ctx: Context,
     include_archived: bool = False,
 ) -> list[dict[str, Any]]:
-    """Список NevoLabs-проектов с ID связанной Kanban-доски и участниками."""
+    """Список Espada Labs-проектов с ID связанной Kanban-доски и участниками."""
     result = await _call(
         ctx,
         "GET",
@@ -415,16 +415,16 @@ async def list_lab_projects(
         params={"include_archived": include_archived},
     )
     if not isinstance(result, list):
-        raise ToolError("NevOcean API вернул неожиданный формат списка NevoLabs-проектов")
+        raise ToolError("Espada API вернул неожиданный формат списка Espada Labs-проектов")
     return result
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=True)
 async def get_lab_project(ctx: Context, project_id: int) -> dict[str, Any]:
-    """Получить NevoLabs-проект, его статус, участников и board_id."""
+    """Получить Espada Labs-проект, его статус, участников и board_id."""
     result = await _call(ctx, "GET", f"/lab-projects/{project_id}")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат NevoLabs-проекта")
+        raise ToolError("Espada API вернул неожиданный формат Espada Labs-проекта")
     return result
 
 
@@ -436,7 +436,7 @@ async def create_lab_project(
     status: str = "Идея",
     member_ids: list[int] | None = None,
 ) -> dict[str, Any]:
-    """Создать NevoLabs-проект и его Kanban-доску с базовыми колонками."""
+    """Создать Espada Labs-проект и его Kanban-доску с базовыми колонками."""
     result = await _call(
         ctx,
         "POST",
@@ -449,7 +449,7 @@ async def create_lab_project(
         },
     )
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат NevoLabs-проекта")
+        raise ToolError("Espada API вернул неожиданный формат Espada Labs-проекта")
     return result
 
 
@@ -474,10 +474,10 @@ async def update_lab_project(
         if value is not None
     }
     if not body:
-        raise ToolError("Не передано ни одного изменения NevoLabs-проекта")
+        raise ToolError("Не передано ни одного изменения Espada Labs-проекта")
     result = await _call(ctx, "PATCH", f"/lab-projects/{project_id}", json=body)
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат NevoLabs-проекта")
+        raise ToolError("Espada API вернул неожиданный формат Espada Labs-проекта")
     return result
 
 
@@ -489,10 +489,10 @@ async def archive_lab_project(
 ) -> dict[str, Any]:
     """Архивировать проект и скрыть его доску. Для выполнения передайте confirm=true."""
     if not confirm:
-        raise ToolError("Архивация NevoLabs-проекта требует confirm=true")
+        raise ToolError("Архивация Espada Labs-проекта требует confirm=true")
     result = await _call(ctx, "POST", f"/lab-projects/{project_id}/archive")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат NevoLabs-проекта")
+        raise ToolError("Espada API вернул неожиданный формат Espada Labs-проекта")
     return result
 
 
@@ -502,7 +502,7 @@ async def add_lab_project_member(
     project_id: int,
     user_id: int,
 ) -> dict[str, Any]:
-    """Добавить сотрудника в NevoLabs-проект."""
+    """Добавить сотрудника в Espada Labs-проект."""
     result = await _call(
         ctx,
         "POST",
@@ -510,7 +510,7 @@ async def add_lab_project_member(
         json={"user_id": user_id},
     )
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат NevoLabs-проекта")
+        raise ToolError("Espada API вернул неожиданный формат Espada Labs-проекта")
     return result
 
 
@@ -520,14 +520,14 @@ async def remove_lab_project_member(
     project_id: int,
     user_id: int,
 ) -> dict[str, Any]:
-    """Удалить сотрудника из NevoLabs-проекта."""
+    """Удалить сотрудника из Espada Labs-проекта."""
     result = await _call(
         ctx,
         "DELETE",
         f"/lab-projects/{project_id}/members/{user_id}",
     )
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат NevoLabs-проекта")
+        raise ToolError("Espada API вернул неожиданный формат Espada Labs-проекта")
     return result
 
 
@@ -536,7 +536,7 @@ async def list_users(ctx: Context) -> list[dict[str, Any]]:
     """Активные сотрудники для поиска владельцев и исполнителей задач."""
     users = await _call(ctx, "GET", "/users")
     if not isinstance(users, list):
-        raise ToolError("NevOcean API вернул неожиданный формат списка сотрудников")
+        raise ToolError("Espada API вернул неожиданный формат списка сотрудников")
     return [
         {
             "id": user["id"],
@@ -575,7 +575,7 @@ async def list_leads(
     if isinstance(result, list):
         return {"items": result, "total": len(result)}
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат списка лидов")
+        raise ToolError("Espada API вернул неожиданный формат списка лидов")
     return result
 
 
@@ -584,7 +584,7 @@ async def get_lead(ctx: Context, lead_id: int) -> dict[str, Any]:
     """Получить полную карточку CRM-лида по ID."""
     result = await _call(ctx, "GET", f"/leads/{lead_id}")
     if not isinstance(result, dict):
-        raise ToolError("NevOcean API вернул неожиданный формат лида")
+        raise ToolError("Espada API вернул неожиданный формат лида")
     return result
 
 

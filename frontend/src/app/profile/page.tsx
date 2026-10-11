@@ -23,7 +23,7 @@ function ApiKeysSection() {
   const [createdKey, setCreatedKey] = useState<ApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
-  const mcpUrl = typeof window !== "undefined" ? `${window.location.origin}/mcp` : "https://nevocean.anti-flow.com/mcp";
+  const mcpUrl = typeof window !== "undefined" ? `${window.location.origin}/mcp` : "https://espada.anti-flow.com/mcp";
 
   async function load() {
     try {
@@ -78,7 +78,7 @@ function ApiKeysSection() {
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text)" }}>API-ключи (для Claude)</div>
-            <div style={{ fontSize: 12, color: "var(--text3)" }}>Подключите Claude к NevoOcean через custom connector</div>
+            <div style={{ fontSize: 12, color: "var(--text3)" }}>Подключите Claude к Espada через custom connector</div>
           </div>
         </div>
         <Button variant="primary" size="sm" onClick={() => setShowCreate(true)}>+ Создать ключ</Button>

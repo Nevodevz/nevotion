@@ -1,6 +1,6 @@
-# NevoDevs Workspace
+# Espada Workspace
 
-Рабочее пространство команды NevoDevs: задачи в Kanban/Gantt, публичные read-only
+Рабочее пространство команды Espada: задачи в Kanban/Gantt, публичные read-only
 доски для клиентов, реестр проектов, CRM и личные трекеры. Встроенный remote MCP
 даёт Codex, Claude, Gemini и другим AI-клиентам доступ в рамках прав API-ключа.
 
@@ -16,7 +16,9 @@
 
 ## Быстрый старт (production)
 
-Нужен только Docker и Docker Compose на сервере.
+Порядок настройки DNS, TLS и Docker Compose описан в [DEPLOY.md](DEPLOY.md).
+Для существующей установки используйте раздел «Переход существующей установки
+на Espada», чтобы сохранить базу и загруженные аватары.
 
 ```bash
 # 1. Создать .env из примера
@@ -31,16 +33,18 @@ nano .env
 # 3. Поднять весь стек
 docker compose up -d --build
 
-# Готово. Приложение на http://<server-ip>/
+# Готово. Приложение на https://espada.anti-flow.com/
 ```
 
 При первом запуске бэкенд автоматически создаёт таблицы и заполняет демо-данными (команда + клиенты).
 
 ### Вход
 
-Первичный вход: `beka@nevodevs.kg` и значение `INITIAL_USER_PASSWORD` из
+Первичный вход: `beka@espada.kg` и значение `INITIAL_USER_PASSWORD` из
 серверного `.env`. При первом заполнении пустой базы этот пароль получают все
 предсозданные сотрудники.
+При обновлении существующие логины и пароли не меняются; `@espada.kg` —
+адреса входа для новой базы, настройка почтового сервиса не выполняется.
 
 ⚠️ **Смените пароли через интерфейс/БД перед реальным использованием.**
 
@@ -49,7 +53,7 @@ docker compose up -d --build
 ## Структура проекта
 
 ```
-nevodevs/
+espada/
 ├── docker-compose.yml      # весь стек
 ├── .env.example            # шаблон переменных окружения
 ├── nginx/
@@ -117,19 +121,20 @@ API-документация (Swagger): `http://localhost:8000/docs`
 Данные в Docker volume `pgdata`. Бэкап стандартным `pg_dump`:
 
 ```bash
-docker compose exec db pg_dump -U nevodevs nevodevs > backup_$(date +%F).sql
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup_$(date +%F).sql
 ```
 
 Восстановление:
 ```bash
-cat backup.sql | docker compose exec -T db psql -U nevodevs nevodevs
+cat backup.sql | docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
 ```
 
 ---
 
-## SSL (опционально)
+## SSL
 
-В `nginx/nginx.conf` добавить 443-server с сертификатами Let's Encrypt (через certbot или отдельный контейнер). Текущий конфиг — только HTTP на :80.
+В `nginx/nginx.conf` настроен HTTPS для `espada.anti-flow.com` с сертификатами
+Let's Encrypt. Выпустите сертификат до запуска nginx по инструкции в DEPLOY.md.
 
 ---
 
@@ -149,18 +154,19 @@ cat backup.sql | docker compose exec -T db psql -U nevodevs nevodevs
 | POST/DELETE | `/api/boards/{id}/share` | редактор доски; создать/отозвать публичную ссылку |
 | GET | `/api/public/boards/view` | публичный read-only доступ по capability-заголовку |
 | GET | `/api/departments` | авторизованные (скрытые — только admin) |
-| POST | `/mcp` | Streamable HTTP MCP; персональный `nvo_...` API-ключ |
+| POST | `/mcp` | Streamable HTTP MCP; персональный `esp_...` API-ключ |
 
 ---
 
 ## Статус тестирования
 
-- ✅ Бэкенд: 100 тестов (включая публичные ссылки и CRUD NevoLabs-досок)
-- ✅ Фронтенд собирается без ошибок (все роуты, standalone-сборка)
-- ✅ MCP: 24 инструмента; protocol-тесты покрывают discovery, CRUD-routing, schemas, annotations и tool errors
-- ⚠️ Полный прогон на реальном Postgres делается при первом `docker compose up` — код БД-агностичен (SQLAlchemy), миграция на Postgres прозрачна
+- ✅ Бэкенд: 105 тестов на SQLite (включая совместимость переименования, публичные ссылки и CRUD Espada Labs-досок)
+- ✅ Фронтенд: 34 теста; все роуты собираются в standalone-режиме
+- ✅ MCP: 24 инструмента и 5 protocol-тестов (инициализация Espada, discovery, CRUD-routing, schemas, annotations и tool errors)
+- ✅ PostgreSQL 16: миграции до `020`, upgrade/downgrade переименования, первый seed и повторное заполнение без дублей, startup и health проверены на временной базе
+- Полный набор API-тестов использует SQLite; перечисленные проверки PostgreSQL не заменяют полный прогон API на PostgreSQL
 
-Боевые миграции выполняются Alembic из backend entrypoint; актуальная head-миграция — `019`.
+Боевые миграции выполняются Alembic из backend entrypoint; актуальная head-миграция — `020`.
 
 ---
 
