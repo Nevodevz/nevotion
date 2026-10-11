@@ -8,9 +8,9 @@ import psycopg2, os
 psycopg2.connect(
     host=os.getenv('POSTGRES_HOST','db'),
     port=os.getenv('POSTGRES_PORT','5432'),
-    user=os.getenv('POSTGRES_USER','nevodevs'),
-    password=os.getenv('POSTGRES_PASSWORD','nevodevs_pass'),
-    dbname=os.getenv('POSTGRES_DB','nevodevs'),
+    user=os.getenv('POSTGRES_USER','espada'),
+    password=os.getenv('POSTGRES_PASSWORD','espada_pass'),
+    dbname=os.getenv('POSTGRES_DB','espada'),
 )
 " 2>/dev/null; do
   echo "[entrypoint] DB not ready, retrying in 2s..."

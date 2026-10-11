@@ -921,7 +921,7 @@ export interface ApiKeyCreated extends ApiKey {
   plain_key: string;
 }
 
-// ─────────────────────────── NevoLabs ───────────────────────────
+// ─────────────────────────── Espada Labs ───────────────────────────
 
 export type LabProjectStatus = "Идея" | "В разработке" | "Запущен" | "Заморожен";
 
@@ -956,7 +956,7 @@ export interface LabProject {
 
 // ───────────────────────── Calendar ─────────────────────────────
 
-/** Visually distinct sources in Nevocean's own calendar. */
+/** Visually distinct sources in Espada's own calendar. */
 export type CalendarSource = "task" | "personal_meeting" | "crm_meeting";
 
 export const CALENDAR_SOURCE: Record<

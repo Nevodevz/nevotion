@@ -37,7 +37,7 @@ export default function DashboardPage() {
     <Shell>
       <div className="page-head">
         <div className="page-h1">Привет, {user?.name} 👋</div>
-        <div className="page-desc">Обзор инфраструктуры NevOcean на сегодня</div>
+        <div className="page-desc">Обзор инфраструктуры Espada на сегодня</div>
       </div>
 
       <div className="stat-row">

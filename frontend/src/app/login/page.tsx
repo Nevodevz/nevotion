@@ -49,10 +49,10 @@ export default function LoginPage() {
               justifyContent: "center", fontWeight: 700, fontSize: 16, color: "white",
             }}
           >
-            N
+            E
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>NevOcean</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>Espada</div>
             <div style={{ fontSize: 11, color: "var(--text3)" }}>Вход в рабочую область</div>
           </div>
         </div>
@@ -65,7 +65,7 @@ export default function LoginPage() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@nevodevs.kg"
+          placeholder="you@espada.kg"
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
 
@@ -90,7 +90,7 @@ export default function LoginPage() {
         </button>
 
         <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 16, textAlign: "center" }}>
-          Данные для входа выдаёт администратор NevoOcean
+          Данные для входа выдаёт администратор Espada
         </div>
       </div>
 

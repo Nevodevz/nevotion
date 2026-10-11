@@ -34,7 +34,7 @@ export function PublicBoardClient({ token }: { token: string }) {
       <header className="public-header">
         <div className="brand">
           <span>N</span>
-          <div><strong>NevOcean</strong><small>Публичный план работ</small></div>
+          <div><strong>Espada</strong><small>Публичный план работ</small></div>
         </div>
         <div className="readonly"><span className="material-symbols-outlined">visibility</span> Только просмотр</div>
       </header>
@@ -64,7 +64,7 @@ export function PublicBoardClient({ token }: { token: string }) {
         )}
       </section>
 
-      <footer className="public-footer">Сроки и статусы обновляются владельцем доски в NevOcean.</footer>
+      <footer className="public-footer">Сроки и статусы обновляются владельцем доски в Espada.</footer>
 
       <style jsx>{`
         .public-page { min-height: 100vh; background: var(--bg); color: var(--text); }

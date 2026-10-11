@@ -1,4 +1,4 @@
-"""Nevocean's own internal calendar feed.
+"""Espada's own internal calendar feed.
 
 Merges three internal sources into one list of unified events:
 
@@ -6,7 +6,7 @@ Merges three internal sources into one list of unified events:
   * ``personal_meeting`` — personal board cards of kind=meeting
   * ``crm_meeting``      — CRM meetings where the user is setter or closer
 
-There is no external calendar provider: Nevocean stores and serves its own
+There is no external calendar provider: Espada stores and serves its own
 schedule.
 
 Privacy: a user sees only their own calendar. Admins and founders may open an

@@ -20,25 +20,25 @@ LAB_DEFAULT_COLS = [
 ]
 
 
-def _nevolabs_dept(db: Session) -> Department | None:
-    return db.query(Department).filter(Department.slug == "nevolabs").first()
+def _espadalabs_dept(db: Session) -> Department | None:
+    return db.query(Department).filter(Department.slug == "espadalabs").first()
 
 
-def _is_nevolabs_member(user: User, db: Session) -> bool:
-    dept = _nevolabs_dept(db)
+def _is_espadalabs_member(user: User, db: Session) -> bool:
+    dept = _espadalabs_dept(db)
     if not dept:
         return False
     return any(m.id == user.id for m in dept.members)
 
 
 def _can_manage(user: User, db: Session) -> bool:
-    return user.is_founder or user.role == Role.admin or _is_nevolabs_member(user, db)
+    return user.is_founder or user.role == Role.admin or _is_espadalabs_member(user, db)
 
 
 def _can_view_project_board(user: User, project: LabProject, db: Session) -> bool:
     if user.is_founder or user.role == Role.admin:
         return True
-    if _is_nevolabs_member(user, db):
+    if _is_espadalabs_member(user, db):
         return True
     return db.query(LabProjectMember).filter(
         LabProjectMember.lab_project_id == project.id,
@@ -115,7 +115,7 @@ def create_lab_project(
     user: User = Depends(get_current_user),
 ):
     if not _can_manage(user, db):
-        raise HTTPException(403, "Доступ только для участников NevoLabs, основателей и администраторов")
+        raise HTTPException(403, "Доступ только для участников Espada Labs, основателей и администраторов")
 
     board = _create_project_board(db, payload.name)
 
@@ -158,7 +158,7 @@ def update_lab_project(
     data = payload.model_dump(exclude_unset=True)
     member_ids = data.pop("member_ids", None)
 
-    # A NevoLabs project and its Kanban board are one domain object. Keep the
+    # An Espada Labs project and its Kanban board are one domain object. Keep the
     # names in lockstep so UI and MCP clients never discover conflicting names.
     if "name" in data and project.board_id is not None:
         board = db.get(Board, project.board_id)

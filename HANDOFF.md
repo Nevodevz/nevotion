@@ -1,27 +1,30 @@
-# NevoDevs Workspace — Handoff (v2)
+# Espada Workspace — Handoff (v2)
 
 ## Стек
 - **БД:** PostgreSQL (Docker, self-hosted) — без внешних тарифов
 - **Бэкенд:** FastAPI + SQLAlchemy 2.0 + JWT + bcrypt
-- **Фронтенд:** Next.js 15 + dnd-kit (drag&drop)
+- **Фронтенд:** Next.js 14 + dnd-kit (drag&drop)
 - **Деплой:** docker-compose (postgres + backend + frontend + nginx)
 
 ## Логины
 Стартовый пароль задаётся секретом `INITIAL_USER_PASSWORD` при первом заполнении
 пустой базы. После первого входа его нужно заменить для каждого пользователя.
+Ниже приведены логины новой базы. Существующие адреса сотрудников при
+обновлении сохраняются. Переход на новый домен и сохранение Docker-томов
+описаны в [DEPLOY.md](DEPLOY.md).
 | Кто | Email | Роль |
 |---|---|---|
-| Бека | beka@nevodevs.kg | admin, основатель, Руководитель |
-| Эрбол | erbol@nevodevs.kg | admin, основатель, Тимлид |
-| Арслан | arslan@nevodevs.kg | admin, основатель, Продажи |
-| Абылай | abylay@nevodevs.kg | admin, основатель, Продажи |
-| Назар | nazar@nevodevs.kg | admin, основатель, Маркетинг |
-| Тимур | timur@nevodevs.kg | admin, основатель, Тех лид (бэкенд) |
-| Адахан | adahan@nevodevs.kg | admin, основатель, Финансы |
-| Азамат/Ариет/Абдулла/Туратбек/Эмирлан | *@nevodevs.kg | staff, Промптеры |
-| Талгат/Бектур/Мирослав | *@nevodevs.kg | staff, Бэкенд |
-| Рахима/Минай | *@nevodevs.kg | staff, Продажи |
-| Ахмад | ahmad@nevodevs.kg | staff, ОКК |
+| Бека | beka@espada.kg | admin, основатель, Руководитель |
+| Эрбол | erbol@espada.kg | admin, основатель, Тимлид |
+| Арслан | arslan@espada.kg | admin, основатель, Продажи |
+| Абылай | abylay@espada.kg | admin, основатель, Продажи |
+| Назар | nazar@espada.kg | admin, основатель, Маркетинг |
+| Тимур | timur@espada.kg | admin, основатель, Тех лид (бэкенд) |
+| Адахан | adahan@espada.kg | admin, основатель, Финансы |
+| Азамат/Ариет/Абдулла/Туратбек/Эмирлан | *@espada.kg | staff, Промптеры |
+| Талгат/Бектур/Мирослав | *@espada.kg | staff, Бэкенд |
+| Рахима/Минай | *@espada.kg | staff, Продажи |
+| Ахмад | ahmad@espada.kg | staff, ОКК |
 
 ## Архитектура ролей
 - `role` (admin/staff) — уровень доступа. Admin может всё: CRUD сотрудников, выдача ролей, редактирование любых задач/таблиц.
@@ -49,8 +52,8 @@
 # Postgres (Docker) или brew services start postgresql@14
 cd backend
 python3.12 -m pip install -r requirements.txt
-POSTGRES_HOST=localhost POSTGRES_PASSWORD=nevodevs_pass python3.12 -m app.seed
-POSTGRES_HOST=localhost POSTGRES_PASSWORD=nevodevs_pass python3.12 -m uvicorn app.main:app --reload
+POSTGRES_HOST=localhost POSTGRES_PASSWORD=espada_pass python3.12 -m app.seed
+POSTGRES_HOST=localhost POSTGRES_PASSWORD=espada_pass python3.12 -m uvicorn app.main:app --reload
 # второй терминал
 cd frontend && npm install && npm run dev
 ```
@@ -63,8 +66,10 @@ docker compose up -d --build
 ```
 
 ## Пересоздание БД (после изменения seed)
+Только для одноразовой локальной базы; для переименования рабочей базы
+выполняется миграция `020`, пересоздание не требуется.
 ```bash
-dropdb nevodevs && createdb -O nevodevs nevodevs
+dropdb espada && createdb -O espada espada
 python3.12 -m app.seed
 ```
 

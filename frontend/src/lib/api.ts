@@ -4,14 +4,23 @@ import type {
   BoardShareStatus, BoardShareCreated, PublicBoard,
 } from "./types";
 
-const TOKEN_KEY = "nevodevs_token";
+import { readStoredValue } from "./storage";
+
+const TOKEN_KEY = "espada_token";
+const LEGACY_TOKEN_KEY = "nevodevs_token";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return readStoredValue(TOKEN_KEY, LEGACY_TOKEN_KEY);
 }
-export function setToken(t: string) { localStorage.setItem(TOKEN_KEY, t); }
-export function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+export function setToken(t: string) {
+  localStorage.setItem(TOKEN_KEY, t);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+}
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(LEGACY_TOKEN_KEY);
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
@@ -24,7 +33,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (res.status === 401) {
     clearToken();
     // Public share pages must stay usable even if this browser happens to have
-    // an expired employee token from an earlier NevOcean session.
+    // an expired employee token from an earlier Espada session.
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/share/")) {
       window.location.href = "/login";
     }
@@ -523,7 +532,7 @@ export const apiKeys = {
   revoke: (id: number) => request<void>(`/api-keys/${id}`, { method: "DELETE" }),
 };
 
-// NevoLabs lab projects
+// Espada Labs lab projects
 export const labProjectApi = {
   list: (include_archived = false) =>
     request<import("./types").LabProject[]>(`/lab-projects${include_archived ? "?include_archived=true" : ""}`),

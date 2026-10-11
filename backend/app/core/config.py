@@ -6,9 +6,9 @@ _DEFAULT_SECRET = "CHANGE_ME_IN_PRODUCTION_use_openssl_rand_hex_32"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    POSTGRES_USER: str = "nevodevs"
-    POSTGRES_PASSWORD: str = "nevodevs_pass"
-    POSTGRES_DB: str = "nevodevs"
+    POSTGRES_USER: str = "espada"
+    POSTGRES_PASSWORD: str = "espada_pass"
+    POSTGRES_DB: str = "espada"
     POSTGRES_HOST: str = "db"
     POSTGRES_PORT: int = 5432
 
