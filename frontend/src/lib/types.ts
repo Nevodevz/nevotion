@@ -672,6 +672,29 @@ export interface FunnelCard extends Lead {
   days_in_stage: number;
 }
 
+export interface LeadBoardColumn {
+  id: number;
+  name: string;
+  color: string;
+  position: number;
+}
+
+export interface LeadBoardCard extends Lead {
+  board_column_id: number | null;
+  board_position: number;
+}
+
+export interface LeadBoardData {
+  columns: LeadBoardColumn[];
+  leads: LeadBoardCard[];
+}
+
+export interface LeadBoardMove {
+  column_id: number | null;
+  before_lead_id: number | null;
+  expected_column_id: number | null;
+}
+
 export interface FunnelStats {
   new_leads: number;
   meetings_stage: number;
